@@ -2,6 +2,7 @@ export interface User {
   id: string;
   name: string;
   avatarUrl?: string; // Optional avatar image URL
+  paymentMessage?: string; // Add this: e.g., "Venmo: @alice-smith"
 }
 
 export interface AuditEntry {
@@ -20,6 +21,7 @@ export interface Expense {
   participants: { user: User; share: number }[];
   date: string; // This is the date of the transaction itself
   history?: AuditEntry[]; // The new audit trail
+  isSettlement?: boolean; // Add this flag
 }
 
 export interface Group {

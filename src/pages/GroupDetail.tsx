@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Plus, ChevronDown, Pencil } from 'lucide-react';
+import { ArrowLeft, Plus, ChevronDown, Pencil, CheckCircle, Handshake } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
 import { currentUser } from '../lib/mockdata';
 import { calculateSimplifiedDebts } from '../lib/utils';
@@ -59,13 +59,23 @@ export const GroupDetail: React.FC = () => {
             </Button>
             <h1 className="text-xl font-bold">{group.name}</h1>
           </div>
-          <Button
-            size="sm"
-            onClick={() => actions.navigateTo('add-expense', activeGroupId)}
-            className="p-2"
-          >
-            <Plus size={20} />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => actions.navigateTo('settle-up')}
+              className="p-2"
+            >
+              <Handshake size={20} />
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => actions.navigateTo('add-expense', activeGroupId)}
+              className="p-2"
+            >
+              <Plus size={20} />
+            </Button>
+          </div>
         </div>
       </div>
       
@@ -117,6 +127,33 @@ export const GroupDetail: React.FC = () => {
               </Card>
             ) : (
               groupExpenses.map(expense => {
+                // Handle settlement transactions differently
+                if (expense.isSettlement) {
+                  return (
+                    <div
+                      key={expense.id}
+                      className="flex items-center gap-4 p-4 bg-surface0 rounded-lg"
+                    >
+                      <CheckCircle className="text-green w-5 h-5 flex-shrink-0" />
+                      <p className="text-sm text-subtext1">
+                        <span className="font-medium text-text">
+                          {expense.paidBy.id === currentUser.id ? "You" : expense.paidBy.name}
+                        </span>{" "}
+                        paid{" "}
+                        <span className="font-medium text-text">
+                          {expense.participants[0].user.id === currentUser.id ? "you" : expense.participants[0].user.name}
+                        </span>{" "}
+                        <span className="font-medium text-text">
+                          ${expense.amount.toFixed(2)}
+                        </span>
+                        <span className="block text-xs text-subtext0 mt-1">
+                          {formatDate(expense.date)}
+                        </span>
+                      </p>
+                    </div>
+                  );
+                }
+
                 // Find current user's participation in this expense
                 const currentUserParticipant = expense.participants.find(
                   p => p.user.id === currentUser.id

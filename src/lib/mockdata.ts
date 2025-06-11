@@ -5,9 +5,19 @@ export const currentUser: User = { id: "user-1", name: "You" };
 
 export const users: User[] = [
   currentUser,
-  { id: "user-2", name: "Alice", avatarUrl: "https://i.pravatar.cc/48?u=2" },
+  { 
+    id: "user-2", 
+    name: "Alice", 
+    avatarUrl: "https://i.pravatar.cc/48?u=2",
+    paymentMessage: "Venmo: @alice-in-chains",
+  },
   { id: "user-3", name: "Bob", avatarUrl: "https://i.pravatar.cc/48?u=3" },
-  { id: "user-4", name: "Charlie", avatarUrl: "https://i.pravatar.cc/48?u=4" },
+  { 
+    id: "user-4", 
+    name: "Charlie", 
+    avatarUrl: "https://i.pravatar.cc/48?u=4",
+    paymentMessage: "CashApp: $char-lie",
+  },
 ];
 
 export const groups: Group[] = [

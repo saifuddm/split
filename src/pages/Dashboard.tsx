@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Users } from 'lucide-react';
+import { Plus, Users, Handshake } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
 import { currentUser, users } from '../lib/mockdata';
 import { calculateSimplifiedDebts } from '../lib/utils';
@@ -183,8 +183,19 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
         
-        {/* Floating Action Button */}
-        <div className="fixed bottom-6 right-6">
+        {/* Floating Action Buttons */}
+        <div className="fixed bottom-6 right-6 flex flex-col gap-3">
+          {/* Settle Up Button */}
+          {usersYouOwe.length > 0 && (
+            <Button
+              onClick={() => actions.navigateTo('settle-up')}
+              className="w-14 h-14 rounded-full shadow-lg bg-green hover:bg-teal"
+            >
+              <Handshake size={24} />
+            </Button>
+          )}
+          
+          {/* Add Expense Button */}
           <Button
             onClick={() => actions.navigateTo('add-expense')}
             className="w-14 h-14 rounded-full shadow-lg"

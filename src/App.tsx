@@ -5,6 +5,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { GroupDetail } from "./pages/GroupDetail";
 import { AddExpense } from "./pages/AddExpense";
 import { CreateGroup } from "./pages/CreateGroup";
+import { SettleUp } from "./pages/SettleUp";
 
 function App() {
   const { isDark, toggleDarkMode, initializeDarkMode } = useStore();
@@ -25,6 +26,8 @@ function App() {
         return <AddExpense />;
       case 'create-group':
         return <CreateGroup />;
+      case 'settle-up':
+        return <SettleUp />;
       default:
         return <Dashboard />;
     }

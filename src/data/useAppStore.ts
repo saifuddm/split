@@ -7,7 +7,7 @@ import {
 import { generateAuditDetails } from "../lib/utils";
 import type { Group, Expense, User, AuditEntry } from "../lib/types";
 
-type Page = "dashboard" | "group-details" | "add-expense" | "create-group";
+type Page = "dashboard" | "group-details" | "add-expense" | "create-group" | "settle-up";
 
 interface AppState {
   currentPage: Page;
@@ -25,6 +25,10 @@ interface AppState {
       updatedExpenseData: Omit<Expense, "id" | "history">,
     ) => void;
     clearEditingExpense: () => void;
+    recordSettlement: (
+      payee: User,
+      settlements: { groupId: string; amount: number }[],
+    ) => void;
   };
 }
 
@@ -99,6 +103,33 @@ export const useAppStore = create<AppState>((set, get) => ({
     },
     clearEditingExpense: () => {
       set({ editingExpenseId: null });
+    },
+    recordSettlement: (payee, settlements) => {
+      const settlementExpenses: Expense[] = settlements.map(
+        ({ groupId, amount }) => ({
+          id: `settlement-${Date.now()}-${Math.random()}`,
+          isSettlement: true,
+          groupId,
+          description: `Payment to ${payee.name}`,
+          amount,
+          paidBy: currentUser, // You are the one paying
+          // The payee is the sole participant, "owing" the full amount back to you.
+          // This creates a negative debt for them, effectively cancelling your positive debt.
+          participants: [{ user: payee, share: amount }],
+          date: new Date().toISOString(),
+          history: [
+            {
+              actor: currentUser,
+              action: `paid ${payee.name} $${amount.toFixed(2)}`,
+              timestamp: new Date().toISOString(),
+            },
+          ],
+        }),
+      );
+
+      set(state => ({
+        expenses: [...state.expenses, ...settlementExpenses]
+      }));
     },
   },
 }));
