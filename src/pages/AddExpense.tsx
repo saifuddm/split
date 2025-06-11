@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
-import { currentUser } from '../lib/mockData';
+import { currentUser } from '../lib/mockdata';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
 import type { User } from '../lib/types';

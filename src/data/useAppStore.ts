@@ -3,7 +3,7 @@ import {
   currentUser,
   groups as initialGroups,
   expenses as initialExpenses,
-} from "../lib/mockData";
+} from "../lib/mockdata";
 import type { Group, Expense } from "../lib/types";
 
 type Page = "dashboard" | "group-details" | "add-expense";

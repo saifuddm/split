@@ -1,7 +1,7 @@
 import React from 'react';
 import { Plus } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
-import { currentUser } from '../lib/mockData';
+import { currentUser } from '../lib/mockdata';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 
