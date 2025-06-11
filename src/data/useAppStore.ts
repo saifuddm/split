@@ -4,7 +4,7 @@ import {
   groups as initialGroups,
   expenses as initialExpenses,
 } from "../lib/mockdata";
-import type { Group, Expense } from "../lib/types";
+import type { Group, Expense, User } from "../lib/types";
 
 type Page = "dashboard" | "group-details" | "add-expense";
 
