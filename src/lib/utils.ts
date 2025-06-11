@@ -144,13 +144,21 @@ export const generateAuditDetails = (
     }
   }
 
-  // Format the output
+  // --- CORRECTED FORMATTING LOGIC ---
   if (changes.length === 0) {
+    // Fallback for when no specific change is detected
     return "made an update to this expense";
   }
+
   if (changes.length === 1) {
     return `updated ${changes[0]}`;
   }
 
-  return `updated ${changes.slice(0, -1).join(", ")} and ${changes.slice(-1)}`;
+  if (changes.length === 2) {
+    return `updated ${changes[0]} and ${changes[1]}`;
+  }
+
+  // For 3 or more changes, use commas and a final "and"
+  const lastChange = changes.pop(); // Remove and get the last item
+  return `updated ${changes.join(", ")}, and ${lastChange}`;
 };
