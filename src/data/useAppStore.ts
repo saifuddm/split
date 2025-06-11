@@ -1,4 +1,3 @@
-// src/store/useAppStore.ts
 import { create } from "zustand";
 import {
   currentUser,
