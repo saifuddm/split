@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
 import { currentUser } from '../lib/mockdata';
@@ -22,6 +22,14 @@ export const AddExpense: React.FC = () => {
   const [isOwedFullAmount, setIsOwedFullAmount] = useState(false);
   
   const selectedGroup = groups.find(g => g.id === selectedGroupId);
+  
+  // Memoized participants who will actually split the cost
+  const participantsToSplit = useMemo(() => {
+    if (isOwedFullAmount && paidBy.id === currentUser.id) {
+      return selectedParticipants.filter(p => p.id !== currentUser.id);
+    }
+    return selectedParticipants;
+  }, [isOwedFullAmount, paidBy.id, selectedParticipants]);
   
   // Update paidBy and participants when group changes
   useEffect(() => {
@@ -71,11 +79,9 @@ export const AddExpense: React.FC = () => {
   
   const calculateSplitAmounts = () => {
     const numericAmount = parseFloat(amount);
-    if (isNaN(numericAmount) || numericAmount <= 0) return {};
-    
-    const participantsToSplit = isOwedFullAmount && paidBy.id === currentUser.id
-      ? selectedParticipants.filter(p => p.id !== currentUser.id)
-      : selectedParticipants;
+    if (isNaN(numericAmount) || numericAmount <= 0 || participantsToSplit.length === 0) {
+      return {};
+    }
     
     const amounts: { [userId: string]: number } = {};
     
@@ -103,6 +109,10 @@ export const AddExpense: React.FC = () => {
     const numericAmount = parseFloat(amount);
     if (isNaN(numericAmount) || numericAmount <= 0) return { isValid: false, error: '' };
     
+    if (participantsToSplit.length === 0) {
+      return { isValid: false, error: 'At least one person must be involved in the split' };
+    }
+    
     const splitAmounts = calculateSplitAmounts();
     const totalSplit = Object.values(splitAmounts).reduce((sum, amt) => sum + amt, 0);
     
@@ -115,10 +125,6 @@ export const AddExpense: React.FC = () => {
         };
       }
     } else if (splitMethod === 'percentage') {
-      const participantsToSplit = isOwedFullAmount && paidBy.id === currentUser.id
-        ? selectedParticipants.filter(p => p.id !== currentUser.id)
-        : selectedParticipants;
-      
       const totalPercentage = participantsToSplit.reduce((sum, participant) => {
         const percentage = parseFloat(percentages[participant.id] || '0');
         return sum + (isNaN(percentage) ? 0 : percentage);
@@ -394,15 +400,11 @@ export const AddExpense: React.FC = () => {
                   {splitMethod === 'equally' && (
                     <div className="bg-surface0 p-4 rounded-lg">
                       <p className="text-sm text-subtext1">
-                        Split equally among {isOwedFullAmount && paidBy.id === currentUser.id 
-                          ? selectedParticipants.length - 1 
-                          : selectedParticipants.length} people
+                        Split equally among {participantsToSplit.length} people
                       </p>
-                      {amount && parseFloat(amount) > 0 && (
+                      {amount && parseFloat(amount) > 0 && participantsToSplit.length > 0 && (
                         <p className="text-sm text-subtext1 mt-1">
-                          ${(parseFloat(amount) / (isOwedFullAmount && paidBy.id === currentUser.id 
-                            ? selectedParticipants.length - 1 
-                            : selectedParticipants.length)).toFixed(2)} each
+                          ${(parseFloat(amount) / participantsToSplit.length).toFixed(2)} each
                         </p>
                       )}
                     </div>
@@ -410,9 +412,7 @@ export const AddExpense: React.FC = () => {
                   
                   {splitMethod === 'exact' && (
                     <div className="space-y-3">
-                      {selectedParticipants
-                        .filter(p => !(isOwedFullAmount && paidBy.id === currentUser.id && p.id === currentUser.id))
-                        .map(participant => (
+                      {participantsToSplit.map(participant => (
                         <div key={participant.id} className="flex items-center gap-3">
                           <Avatar user={participant} size="sm" />
                           <span className="font-medium flex-1">
@@ -441,9 +441,7 @@ export const AddExpense: React.FC = () => {
                   
                   {splitMethod === 'percentage' && (
                     <div className="space-y-3">
-                      {selectedParticipants
-                        .filter(p => !(isOwedFullAmount && paidBy.id === currentUser.id && p.id === currentUser.id))
-                        .map(participant => (
+                      {participantsToSplit.map(participant => (
                         <div key={participant.id} className="flex items-center gap-3">
                           <Avatar user={participant} size="sm" />
                           <span className="font-medium flex-1">

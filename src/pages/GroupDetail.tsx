@@ -130,30 +130,43 @@ export const GroupDetail: React.FC = () => {
                 <p className="text-center text-subtext1">No expenses yet</p>
               </Card>
             ) : (
-              groupExpenses.map(expense => (
-                <Card key={expense.id}>
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h3 className="font-medium mb-1">{expense.description}</h3>
-                      <div className="flex items-center gap-2 text-sm text-subtext1">
-                        <Avatar user={expense.paidBy} size="sm" />
-                        <span>
-                          {expense.paidBy.id === currentUser.id ? 'You' : expense.paidBy.name} paid
-                        </span>
+              groupExpenses.map(expense => {
+                // Find current user's participation in this expense
+                const currentUserParticipant = expense.participants.find(
+                  p => p.user.id === currentUser.id
+                );
+                
+                return (
+                  <Card key={expense.id}>
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="font-medium mb-1">{expense.description}</h3>
+                        <div className="flex items-center gap-2 text-sm text-subtext1">
+                          <Avatar user={expense.paidBy} size="sm" />
+                          <span>
+                            {expense.paidBy.id === currentUser.id ? 'You' : expense.paidBy.name} paid
+                          </span>
+                        </div>
+                        <p className="text-xs text-subtext0 mt-1">
+                          {formatDate(expense.date)}
+                        </p>
                       </div>
-                      <p className="text-xs text-subtext0 mt-1">
-                        {formatDate(expense.date)}
-                      </p>
+                      <div className="text-right">
+                        <p className="font-bold text-lg">${expense.amount.toFixed(2)}</p>
+                        {currentUserParticipant ? (
+                          <p className="text-xs text-subtext1">
+                            Your share: ${currentUserParticipant.share.toFixed(2)}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-subtext1">
+                            Not involved in split
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-lg">${expense.amount.toFixed(2)}</p>
-                      <p className="text-xs text-subtext1">
-                        ${(expense.amount / expense.participants.length).toFixed(2)} each
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-              ))
+                  </Card>
+                );
+              })
             )}
           </div>
         </div>
