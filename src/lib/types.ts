@@ -20,3 +20,5 @@ export interface Group {
   name: string;
   members: User[];
 }
+
+export type SplitMethod = "equally" | "exact" | "percentage";
