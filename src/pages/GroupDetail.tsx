@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Plus, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Plus, ChevronDown, Pencil } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
 import { currentUser } from '../lib/mockdata';
 import { calculateSimplifiedDebts } from '../lib/utils';
@@ -162,22 +162,63 @@ export const GroupDetail: React.FC = () => {
                       </div>
                     </div>
                     {expandedExpenseId === expense.id && (
-                      <div className="border-t border-surface0 p-4">
-                        <h4 className="font-medium text-sm mb-3">Split Breakdown</h4>
-                        <div className="space-y-3">
-                          {expense.participants.map(({ user, share }) => (
-                            <div key={user.id} className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <Avatar user={user} size="sm" />
-                                <span className="text-sm">
-                                  {user.id === currentUser.id ? "You" : user.name}
-                                </span>
+                      <>
+                        <div className="border-t border-surface0 p-4">
+                          <div className="flex justify-between items-center mb-3">
+                            <h4 className="font-medium text-sm">Split Breakdown</h4>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                actions.startEditingExpense(expense.id);
+                              }}
+                              className="flex items-center gap-1"
+                            >
+                              <Pencil size={14} />
+                              Edit
+                            </Button>
+                          </div>
+                          <div className="space-y-3">
+                            {expense.participants.map(({ user, share }) => (
+                              <div key={user.id} className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <Avatar user={user} size="sm" />
+                                  <span className="text-sm">
+                                    {user.id === currentUser.id ? "You" : user.name}
+                                  </span>
+                                </div>
+                                <span className="text-sm font-mono">${share.toFixed(2)}</span>
                               </div>
-                              <span className="text-sm font-mono">${share.toFixed(2)}</span>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                        
+                        {/* History Section */}
+                        {expense.history && expense.history.length > 0 && (
+                          <div className="border-t border-surface0 p-4">
+                            <h4 className="font-medium text-sm mb-3">History</h4>
+                            <div className="space-y-3">
+                              {expense.history.map((entry, index) => (
+                                <div key={index} className="flex items-center gap-3 text-xs">
+                                  <Avatar user={entry.actor} size="xs" />
+                                  <p className="text-subtext1">
+                                    <span className="font-medium text-text">
+                                      {entry.actor.id === currentUser.id ? "You" : entry.actor.name}
+                                    </span>{" "}
+                                    {entry.action} on {formatDate(entry.timestamp)}.
+                                    {entry.details && (
+                                      <span className="block text-subtext0 mt-1">
+                                        {entry.details}
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
                   </Card>
                 );

@@ -4,37 +4,54 @@ import {
   groups as initialGroups,
   expenses as initialExpenses,
 } from "../lib/mockdata";
-import type { Group, Expense, User } from "../lib/types";
+import type { Group, Expense, User, AuditEntry } from "../lib/types";
 
 type Page = "dashboard" | "group-details" | "add-expense" | "create-group";
 
 interface AppState {
   currentPage: Page;
   activeGroupId: string | null;
+  editingExpenseId: string | null;
   groups: Group[];
   expenses: Expense[];
   actions: {
     navigateTo: (page: Page, groupId?: string) => void;
-    addExpense: (newExpense: Omit<Expense, "id">) => void;
+    addExpense: (newExpense: Omit<Expense, "id" | "history">) => void;
     createGroup: (groupName: string, members: User[]) => void;
+    startEditingExpense: (expenseId: string) => void;
+    updateExpense: (
+      expenseId: string,
+      updatedExpenseData: Omit<Expense, "id" | "history">,
+    ) => void;
+    clearEditingExpense: () => void;
   };
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
   currentPage: "dashboard",
   activeGroupId: null,
+  editingExpenseId: null,
   groups: initialGroups,
   expenses: initialExpenses,
   actions: {
     navigateTo: (page, groupId = null) =>
       set({ currentPage: page, activeGroupId: groupId }),
-    addExpense: (newExpense) =>
-      set((state) => ({
-        expenses: [
-          ...state.expenses,
-          { ...newExpense, id: `exp-${Date.now()}` },
+    addExpense: (newExpenseData) => {
+      const newExpense: Expense = {
+        ...newExpenseData,
+        id: `exp-${Date.now()}`,
+        history: [
+          {
+            actor: currentUser,
+            action: "created this expense",
+            timestamp: new Date().toISOString(),
+          },
         ],
-      })),
+      };
+      set((state) => ({
+        expenses: [...state.expenses, newExpense],
+      }));
+    },
     createGroup: (groupName, members) => {
       const newGroup: Group = {
         id: `group-${Date.now()}`,
@@ -47,6 +64,37 @@ export const useAppStore = create<AppState>((set, get) => ({
       }));
       // Navigate to the new group's page after creation
       get().actions.navigateTo("group-details", newGroup.id);
+    },
+    startEditingExpense: (expenseId) => {
+      set({ editingExpenseId: expenseId });
+      get().actions.navigateTo("add-expense", get().activeGroupId);
+    },
+    updateExpense: (expenseId, updatedData) => {
+      const originalExpense = get().expenses.find(e => e.id === expenseId);
+      if (!originalExpense) return;
+
+      const newHistoryEntry: AuditEntry = {
+        actor: currentUser,
+        action: "updated this expense",
+        timestamp: new Date().toISOString(),
+        // Optional: Add more detail about what changed here later
+      };
+
+      const updatedExpense: Expense = {
+        ...updatedData,
+        id: expenseId,
+        history: [...(originalExpense.history || []), newHistoryEntry],
+      };
+
+      set((state) => ({
+        expenses: state.expenses.map(e =>
+          e.id === expenseId ? updatedExpense : e,
+        ),
+        editingExpenseId: null, // Clear editing state
+      }));
+    },
+    clearEditingExpense: () => {
+      set({ editingExpenseId: null });
     },
   },
 }));

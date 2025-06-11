@@ -8,7 +8,7 @@ import { Switch } from '../components/Switch';
 import type { User, SplitMethod } from '../lib/types';
 
 export const AddExpense: React.FC = () => {
-  const { activeGroupId, groups, actions } = useAppStore();
+  const { activeGroupId, editingExpenseId, groups, expenses, actions } = useAppStore();
   
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -22,6 +22,8 @@ export const AddExpense: React.FC = () => {
   const [isOwedFullAmount, setIsOwedFullAmount] = useState(false);
   
   const selectedGroup = groups.find(g => g.id === selectedGroupId);
+  const isEditMode = editingExpenseId !== null;
+  const editingExpense = isEditMode ? expenses.find(e => e.id === editingExpenseId) : null;
   
   // Memoized participants who will actually split the cost
   const participantsToSplit = useMemo(() => {
@@ -30,6 +32,34 @@ export const AddExpense: React.FC = () => {
     }
     return selectedParticipants;
   }, [isOwedFullAmount, paidBy.id, selectedParticipants]);
+  
+  // Pre-fill form when in edit mode
+  useEffect(() => {
+    if (isEditMode && editingExpense) {
+      setDescription(editingExpense.description);
+      setAmount(editingExpense.amount.toString());
+      setSelectedGroupId(editingExpense.groupId);
+      setPaidBy(editingExpense.paidBy);
+      setSelectedParticipants(editingExpense.participants.map(p => p.user));
+      
+      // Check if it's an advanced split (not equal shares)
+      const totalAmount = editingExpense.amount;
+      const equalShare = totalAmount / editingExpense.participants.length;
+      const isEqualSplit = editingExpense.participants.every(p => 
+        Math.abs(p.share - equalShare) < 0.01
+      );
+      
+      if (!isEqualSplit) {
+        setIsAdvanced(true);
+        setSplitMethod('exact');
+        const exactAmountsMap: { [userId: string]: string } = {};
+        editingExpense.participants.forEach(p => {
+          exactAmountsMap[p.user.id] = p.share.toString();
+        });
+        setExactAmounts(exactAmountsMap);
+      }
+    }
+  }, [isEditMode, editingExpense]);
   
   // Update paidBy and participants when group changes
   useEffect(() => {
@@ -40,23 +70,23 @@ export const AddExpense: React.FC = () => {
       // In simple mode, all members are participants
       if (!isAdvanced) {
         setSelectedParticipants(selectedGroup.members);
-      } else if (selectedParticipants.length === 0) {
-        // Initialize with all members in advanced mode
+      } else if (selectedParticipants.length === 0 && !isEditMode) {
+        // Initialize with all members in advanced mode (but not when editing)
         setSelectedParticipants(selectedGroup.members);
       }
     }
-  }, [selectedGroupId, selectedGroup, paidBy.id, isAdvanced]);
+  }, [selectedGroupId, selectedGroup, paidBy.id, isAdvanced, isEditMode]);
   
   // Reset advanced settings when switching modes
   useEffect(() => {
-    if (!isAdvanced && selectedGroup) {
+    if (!isAdvanced && selectedGroup && !isEditMode) {
       setSelectedParticipants(selectedGroup.members);
       setSplitMethod('equally');
       setExactAmounts({});
       setPercentages({});
       setIsOwedFullAmount(false);
     }
-  }, [isAdvanced, selectedGroup]);
+  }, [isAdvanced, selectedGroup, isEditMode]);
   
   const handleParticipantToggle = (user: User) => {
     setSelectedParticipants(prev => {
@@ -166,20 +196,29 @@ export const AddExpense: React.FC = () => {
       share,
     }));
     
-    const newExpense = {
+    const expenseData = {
       groupId: selectedGroupId,
       description: description.trim(),
       amount: numericAmount,
       paidBy,
       participants,
-      date: new Date().toISOString(),
+      date: isEditMode && editingExpense ? editingExpense.date : new Date().toISOString(),
     };
     
-    actions.addExpense(newExpense);
+    if (isEditMode && editingExpenseId) {
+      actions.updateExpense(editingExpenseId, expenseData);
+    } else {
+      actions.addExpense(expenseData);
+    }
+    
     actions.navigateTo('group-details', selectedGroupId);
   };
   
   const handleCancel = () => {
+    if (isEditMode) {
+      actions.clearEditingExpense();
+    }
+    
     if (activeGroupId) {
       actions.navigateTo('group-details', activeGroupId);
     } else {
@@ -207,14 +246,16 @@ export const AddExpense: React.FC = () => {
           >
             Cancel
           </Button>
-          <h1 className="text-xl font-bold">Add Expense</h1>
+          <h1 className="text-xl font-bold">
+            {isEditMode ? 'Edit Expense' : 'Add Expense'}
+          </h1>
           <Button
             size="sm"
             onClick={handleSave}
             disabled={!isFormValid}
             className={!isFormValid ? 'opacity-50 cursor-not-allowed' : ''}
           >
-            Save
+            {isEditMode ? 'Update' : 'Save'}
           </Button>
         </div>
       </div>

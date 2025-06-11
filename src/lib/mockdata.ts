@@ -36,6 +36,13 @@ export const expenses: Expense[] = [
       { user: users[2], share: 300 },
     ],
     date: "2025-06-05T10:00:00Z",
+    history: [
+      {
+        actor: users[1], // Alice
+        action: "created this expense",
+        timestamp: "2025-06-05T10:00:00Z",
+      },
+    ],
   },
   {
     id: "exp-2",
@@ -49,6 +56,13 @@ export const expenses: Expense[] = [
       { user: users[2], share: 50 },
     ],
     date: "2025-06-06T19:30:00Z",
+    history: [
+      {
+        actor: users[0], // You
+        action: "created this expense",
+        timestamp: "2025-06-06T19:30:00Z",
+      },
+    ],
   },
   {
     id: "exp-3",
@@ -61,5 +75,12 @@ export const expenses: Expense[] = [
       { user: users[3], share: 30 },
     ],
     date: "2025-06-10T12:00:00Z",
+    history: [
+      {
+        actor: users[3], // Charlie
+        action: "created this expense",
+        timestamp: "2025-06-10T12:00:00Z",
+      },
+    ],
   },
 ];

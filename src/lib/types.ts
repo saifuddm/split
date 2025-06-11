@@ -1,8 +1,14 @@
-
 export interface User {
   id: string;
   name: string;
   avatarUrl?: string; // Optional avatar image URL
+}
+
+export interface AuditEntry {
+  actor: User;
+  action: string; // e.g., "created", "updated the amount", "changed the description"
+  timestamp: string; // ISO 8601 format
+  details?: string; // e.g., "from $50.00 to $60.00"
 }
 
 export interface Expense {
@@ -12,7 +18,8 @@ export interface Expense {
   amount: number;
   paidBy: User;
   participants: { user: User; share: number }[];
-  date: string; // ISO 8601 format
+  date: string; // This is the date of the transaction itself
+  history?: AuditEntry[]; // The new audit trail
 }
 
 export interface Group {

@@ -3,11 +3,12 @@ import type { User } from '../lib/types';
 
 interface AvatarProps {
   user: User;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
 }
 
 export const Avatar: React.FC<AvatarProps> = ({ user, size = 'md' }) => {
   const sizeClasses = {
+    xs: 'w-6 h-6 text-xs',
     sm: 'w-8 h-8 text-sm',
     md: 'w-10 h-10 text-base',
     lg: 'w-12 h-12 text-lg',
