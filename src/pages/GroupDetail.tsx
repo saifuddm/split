@@ -1,13 +1,21 @@
-import React from 'react';
-import { ArrowLeft, Plus } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowLeft, Plus, ChevronDown } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
 import { currentUser } from '../lib/mockdata';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
+import type { User } from '../lib/types';
+
+interface SimplifiedDebt {
+  debtor: User;
+  creditor: User;
+  amount: number;
+}
 
 export const GroupDetail: React.FC = () => {
   const { activeGroupId, groups, expenses, actions } = useAppStore();
+  const [expandedExpenseId, setExpandedExpenseId] = useState<string | null>(null);
   
   const group = groups.find(g => g.id === activeGroupId);
   const groupExpenses = expenses.filter(exp => exp.groupId === activeGroupId);
@@ -50,7 +58,61 @@ export const GroupDetail: React.FC = () => {
     return balances;
   };
   
-  const memberBalances = calculateMemberBalances();
+  // Calculate simplified debts using settle up algorithm
+  const calculateSimplifiedDebts = (): SimplifiedDebt[] => {
+    const memberBalances = calculateMemberBalances();
+    
+    // Create arrays of debtors and creditors
+    const debtors = group.members
+      .filter(member => memberBalances[member.id] < -0.01) // Using small threshold for floating point comparison
+      .map(member => ({ user: member, balance: memberBalances[member.id] }));
+    
+    const creditors = group.members
+      .filter(member => memberBalances[member.id] > 0.01)
+      .map(member => ({ user: member, balance: memberBalances[member.id] }));
+    
+    const simplifiedDebts: SimplifiedDebt[] = [];
+    
+    // Create working copies to avoid mutating the original arrays
+    const workingDebtors = [...debtors];
+    const workingCreditors = [...creditors];
+    
+    while (workingDebtors.length > 0 && workingCreditors.length > 0) {
+      const currentDebtor = workingDebtors[0];
+      const currentCreditor = workingCreditors[0];
+      
+      const transferAmount = Math.min(
+        Math.abs(currentDebtor.balance),
+        currentCreditor.balance
+      );
+      
+      simplifiedDebts.push({
+        debtor: currentDebtor.user,
+        creditor: currentCreditor.user,
+        amount: transferAmount
+      });
+      
+      // Update balances
+      currentDebtor.balance += transferAmount;
+      currentCreditor.balance -= transferAmount;
+      
+      // Remove settled parties
+      if (Math.abs(currentDebtor.balance) < 0.01) {
+        workingDebtors.shift();
+      }
+      if (Math.abs(currentCreditor.balance) < 0.01) {
+        workingCreditors.shift();
+      }
+    }
+    
+    return simplifiedDebts;
+  };
+  
+  const handleToggleExpense = (expenseId: string) => {
+    setExpandedExpenseId(prevId => (prevId === expenseId ? null : expenseId));
+  };
+  
+  const simplifiedDebts = calculateSimplifiedDebts();
   
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -89,35 +151,40 @@ export const GroupDetail: React.FC = () => {
       </div>
       
       <div className="max-w-md mx-auto p-4">
-        {/* Balances Section */}
+        {/* Simplified Debts Section */}
         <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-4">Balances</h2>
+          <h2 className="text-lg font-semibold mb-4">Who Owes Who</h2>
           <div className="space-y-3">
-            {group.members.map(member => {
-              const balance = memberBalances[member.id];
-              return (
-                <Card key={member.id}>
+            {simplifiedDebts.length === 0 ? (
+              <Card>
+                <p className="text-center text-subtext1">Everyone is settled up!</p>
+              </Card>
+            ) : (
+              simplifiedDebts.map(({ debtor, creditor, amount }, index) => (
+                <Card key={index}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <Avatar user={member} />
+                      <Avatar user={debtor} />
                       <span className="font-medium">
-                        {member.id === currentUser.id ? 'You' : member.name}
+                        {debtor.id === currentUser.id ? "You" : debtor.name}
                       </span>
                     </div>
-                    <div className="text-right">
-                      <p className={`font-medium ${
-                        balance > 0 ? 'text-green' : balance < 0 ? 'text-red' : 'text-subtext1'
-                      }`}>
-                        {balance > 0 ? '+' : ''}${balance.toFixed(2)}
-                      </p>
-                      <p className="text-xs text-subtext1">
-                        {balance > 0 ? 'gets back' : balance < 0 ? 'owes' : 'settled up'}
-                      </p>
+                    <div className="flex flex-col items-center">
+                      <span className="text-sm text-subtext1">owes</span>
+                      <span className="font-semibold text-red">
+                        ${amount.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Avatar user={creditor} />
+                      <span className="font-medium">
+                        {creditor.id === currentUser.id ? "You" : creditor.name}
+                      </span>
                     </div>
                   </div>
                 </Card>
-              );
-            })}
+              ))
+            )}
           </div>
         </div>
         
@@ -137,33 +204,62 @@ export const GroupDetail: React.FC = () => {
                 );
                 
                 return (
-                  <Card key={expense.id}>
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h3 className="font-medium mb-1">{expense.description}</h3>
-                        <div className="flex items-center gap-2 text-sm text-subtext1">
-                          <Avatar user={expense.paidBy} size="sm" />
-                          <span>
-                            {expense.paidBy.id === currentUser.id ? 'You' : expense.paidBy.name} paid
-                          </span>
+                  <Card key={expense.id} className="p-0">
+                    <div
+                      className="p-4 cursor-pointer"
+                      onClick={() => handleToggleExpense(expense.id)}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h3 className="font-medium mb-1">{expense.description}</h3>
+                          <div className="flex items-center gap-2 text-sm text-subtext1">
+                            <Avatar user={expense.paidBy} size="sm" />
+                            <span>
+                              {expense.paidBy.id === currentUser.id ? 'You' : expense.paidBy.name} paid
+                            </span>
+                          </div>
+                          <p className="text-xs text-subtext0 mt-1">
+                            {formatDate(expense.date)}
+                          </p>
                         </div>
-                        <p className="text-xs text-subtext0 mt-1">
-                          {formatDate(expense.date)}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-lg">${expense.amount.toFixed(2)}</p>
-                        {currentUserParticipant ? (
-                          <p className="text-xs text-subtext1">
-                            Your share: ${currentUserParticipant.share.toFixed(2)}
-                          </p>
-                        ) : (
-                          <p className="text-xs text-subtext1">
-                            Not involved in split
-                          </p>
-                        )}
+                        <div className="text-right">
+                          <p className="font-bold text-lg">${expense.amount.toFixed(2)}</p>
+                          {currentUserParticipant ? (
+                            <p className="text-xs text-subtext1">
+                              Your share: ${currentUserParticipant.share.toFixed(2)}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-subtext1">
+                              Not involved in split
+                            </p>
+                          )}
+                        </div>
+                        <ChevronDown
+                          size={20}
+                          className={`ml-2 text-subtext1 transition-transform ${
+                            expandedExpenseId === expense.id ? "rotate-180" : ""
+                          }`}
+                        />
                       </div>
                     </div>
+                    {expandedExpenseId === expense.id && (
+                      <div className="border-t border-surface0 p-4">
+                        <h4 className="font-medium text-sm mb-3">Split Breakdown</h4>
+                        <div className="space-y-3">
+                          {expense.participants.map(({ user, share }) => (
+                            <div key={user.id} className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <Avatar user={user} size="sm" />
+                                <span className="text-sm">
+                                  {user.id === currentUser.id ? "You" : user.name}
+                                </span>
+                              </div>
+                              <span className="text-sm font-mono">${share.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </Card>
                 );
               })
