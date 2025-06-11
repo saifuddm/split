@@ -17,15 +17,24 @@ export const calculateSimplifiedDebts = (members: User[], expenses: Expense[]): 
   
   // Calculate balances from expenses
   expenses.forEach(expense => {
-    expense.participants.forEach(participant => {
-      if (expense.paidBy.id === participant.user.id) {
-        // This person paid, so they are owed the difference
-        balances[participant.user.id] += expense.amount - participant.share;
-      } else {
-        // This person didn't pay, so they owe their share
-        balances[participant.user.id] -= participant.share;
-      }
-    });
+    if (expense.isSettlement) {
+      // Special logic for settlement transactions
+      // The payer's balance increases (moves closer to zero from negative)
+      balances[expense.paidBy.id] += expense.amount;
+      // The payee's balance decreases (moves closer to zero from positive)
+      balances[expense.participants[0].user.id] -= expense.amount;
+    } else {
+      // Existing logic for regular expenses
+      expense.participants.forEach(participant => {
+        if (expense.paidBy.id === participant.user.id) {
+          // This person paid, so they are owed the difference
+          balances[participant.user.id] += expense.amount - participant.share;
+        } else {
+          // This person didn't pay, so they owe their share
+          balances[participant.user.id] -= participant.share;
+        }
+      });
+    }
   });
   
   // Create arrays of debtors and creditors
