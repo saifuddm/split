@@ -4,6 +4,7 @@ import { useAppStore } from "./data/useAppStore";
 import { Dashboard } from "./pages/Dashboard";
 import { GroupDetail } from "./pages/GroupDetail";
 import { AddExpense } from "./pages/AddExpense";
+import { CreateGroup } from "./pages/CreateGroup";
 
 function App() {
   const { isDark, toggleDarkMode, initializeDarkMode } = useStore();
@@ -22,6 +23,8 @@ function App() {
         return <GroupDetail />;
       case 'add-expense':
         return <AddExpense />;
+      case 'create-group':
+        return <CreateGroup />;
       default:
         return <Dashboard />;
     }

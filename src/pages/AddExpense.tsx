@@ -4,7 +4,8 @@ import { useAppStore } from '../data/useAppStore';
 import { currentUser } from '../lib/mockdata';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
-import type { User } from '../lib/types';
+import { Switch } from '../components/Switch';
+import type { User, SplitMethod } from '../lib/types';
 
 export const AddExpense: React.FC = () => {
   const { activeGroupId, groups, actions } = useAppStore();
@@ -13,15 +14,126 @@ export const AddExpense: React.FC = () => {
   const [amount, setAmount] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState(activeGroupId || '');
   const [paidBy, setPaidBy] = useState<User>(currentUser);
+  const [isAdvanced, setIsAdvanced] = useState(false);
+  const [selectedParticipants, setSelectedParticipants] = useState<User[]>([]);
+  const [splitMethod, setSplitMethod] = useState<SplitMethod>('equally');
+  const [exactAmounts, setExactAmounts] = useState<{ [userId: string]: string }>({});
+  const [percentages, setPercentages] = useState<{ [userId: string]: string }>({});
+  const [isOwedFullAmount, setIsOwedFullAmount] = useState(false);
   
   const selectedGroup = groups.find(g => g.id === selectedGroupId);
   
-  // Update paidBy when group changes
+  // Update paidBy and participants when group changes
   useEffect(() => {
-    if (selectedGroup && !selectedGroup.members.find(m => m.id === paidBy.id)) {
-      setPaidBy(currentUser);
+    if (selectedGroup) {
+      if (!selectedGroup.members.find(m => m.id === paidBy.id)) {
+        setPaidBy(currentUser);
+      }
+      // In simple mode, all members are participants
+      if (!isAdvanced) {
+        setSelectedParticipants(selectedGroup.members);
+      } else if (selectedParticipants.length === 0) {
+        // Initialize with all members in advanced mode
+        setSelectedParticipants(selectedGroup.members);
+      }
     }
-  }, [selectedGroupId, selectedGroup, paidBy.id]);
+  }, [selectedGroupId, selectedGroup, paidBy.id, isAdvanced]);
+  
+  // Reset advanced settings when switching modes
+  useEffect(() => {
+    if (!isAdvanced && selectedGroup) {
+      setSelectedParticipants(selectedGroup.members);
+      setSplitMethod('equally');
+      setExactAmounts({});
+      setPercentages({});
+      setIsOwedFullAmount(false);
+    }
+  }, [isAdvanced, selectedGroup]);
+  
+  const handleParticipantToggle = (user: User) => {
+    setSelectedParticipants(prev => {
+      const isSelected = prev.some(p => p.id === user.id);
+      if (isSelected) {
+        return prev.filter(p => p.id !== user.id);
+      } else {
+        return [...prev, user];
+      }
+    });
+  };
+  
+  const handleExactAmountChange = (userId: string, value: string) => {
+    setExactAmounts(prev => ({ ...prev, [userId]: value }));
+  };
+  
+  const handlePercentageChange = (userId: string, value: string) => {
+    setPercentages(prev => ({ ...prev, [userId]: value }));
+  };
+  
+  const calculateSplitAmounts = () => {
+    const numericAmount = parseFloat(amount);
+    if (isNaN(numericAmount) || numericAmount <= 0) return {};
+    
+    const participantsToSplit = isOwedFullAmount && paidBy.id === currentUser.id
+      ? selectedParticipants.filter(p => p.id !== currentUser.id)
+      : selectedParticipants;
+    
+    const amounts: { [userId: string]: number } = {};
+    
+    if (splitMethod === 'equally') {
+      const sharePerPerson = numericAmount / participantsToSplit.length;
+      participantsToSplit.forEach(participant => {
+        amounts[participant.id] = sharePerPerson;
+      });
+    } else if (splitMethod === 'exact') {
+      participantsToSplit.forEach(participant => {
+        const exactAmount = parseFloat(exactAmounts[participant.id] || '0');
+        amounts[participant.id] = isNaN(exactAmount) ? 0 : exactAmount;
+      });
+    } else if (splitMethod === 'percentage') {
+      participantsToSplit.forEach(participant => {
+        const percentage = parseFloat(percentages[participant.id] || '0');
+        amounts[participant.id] = isNaN(percentage) ? 0 : (numericAmount * percentage) / 100;
+      });
+    }
+    
+    return amounts;
+  };
+  
+  const validateSplit = () => {
+    const numericAmount = parseFloat(amount);
+    if (isNaN(numericAmount) || numericAmount <= 0) return { isValid: false, error: '' };
+    
+    const splitAmounts = calculateSplitAmounts();
+    const totalSplit = Object.values(splitAmounts).reduce((sum, amt) => sum + amt, 0);
+    
+    if (splitMethod === 'exact') {
+      const difference = Math.abs(totalSplit - numericAmount);
+      if (difference > 0.01) { // Allow for small rounding differences
+        return { 
+          isValid: false, 
+          error: `Split amounts total $${totalSplit.toFixed(2)}, but expense is $${numericAmount.toFixed(2)}` 
+        };
+      }
+    } else if (splitMethod === 'percentage') {
+      const participantsToSplit = isOwedFullAmount && paidBy.id === currentUser.id
+        ? selectedParticipants.filter(p => p.id !== currentUser.id)
+        : selectedParticipants;
+      
+      const totalPercentage = participantsToSplit.reduce((sum, participant) => {
+        const percentage = parseFloat(percentages[participant.id] || '0');
+        return sum + (isNaN(percentage) ? 0 : percentage);
+      }, 0);
+      
+      if (Math.abs(totalPercentage - 100) > 0.01) {
+        return { 
+          isValid: false, 
+          error: `Percentages total ${totalPercentage.toFixed(1)}%, but should equal 100%` 
+        };
+      }
+    }
+    
+    return { isValid: true, error: '' };
+  };
   
   const handleSave = () => {
     if (!description.trim() || !amount || !selectedGroupId || !selectedGroup) {
@@ -33,11 +145,19 @@ export const AddExpense: React.FC = () => {
       return;
     }
     
-    // Calculate equal split
-    const sharePerPerson = numericAmount / selectedGroup.members.length;
-    const participants = selectedGroup.members.map(member => ({
-      user: member,
-      share: sharePerPerson,
+    if (selectedParticipants.length === 0) {
+      return;
+    }
+    
+    const validation = validateSplit();
+    if (!validation.isValid) {
+      return;
+    }
+    
+    const splitAmounts = calculateSplitAmounts();
+    const participants = Object.entries(splitAmounts).map(([userId, share]) => ({
+      user: selectedParticipants.find(p => p.id === userId)!,
+      share,
     }));
     
     const newExpense = {
@@ -61,7 +181,13 @@ export const AddExpense: React.FC = () => {
     }
   };
   
-  const isFormValid = description.trim() && amount && selectedGroupId && parseFloat(amount) > 0;
+  const validation = validateSplit();
+  const isFormValid = description.trim() && 
+                     amount && 
+                     selectedGroupId && 
+                     parseFloat(amount) > 0 && 
+                     selectedParticipants.length > 0 &&
+                     validation.isValid;
   
   return (
     <div className="min-h-screen bg-base text-text">
@@ -173,11 +299,184 @@ export const AddExpense: React.FC = () => {
                   </label>
                 ))}
               </div>
+              
+              {/* Owed Full Amount Option */}
+              {paidBy.id === currentUser.id && isAdvanced && (
+                <div className="mt-3 p-3 bg-surface0 rounded-lg">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isOwedFullAmount}
+                      onChange={(e) => setIsOwedFullAmount(e.target.checked)}
+                      className="text-blue focus:ring-blue"
+                    />
+                    <span className="text-sm font-medium">I am owed the full amount</span>
+                  </label>
+                  <p className="text-xs text-subtext1 mt-1">
+                    You won't be included in the split calculation
+                  </p>
+                </div>
+              )}
             </div>
           )}
           
-          {/* Split Info */}
+          {/* Advanced Toggle */}
           {selectedGroup && (
+            <div className="border-t border-surface0 pt-4">
+              <Switch
+                checked={isAdvanced}
+                onChange={setIsAdvanced}
+                label="Advanced split"
+              />
+            </div>
+          )}
+          
+          {/* Advanced Options */}
+          {isAdvanced && selectedGroup && (
+            <>
+              {/* Participant Selection */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Who was involved?
+                </label>
+                <div className="space-y-2">
+                  {selectedGroup.members.map(member => (
+                    <label
+                      key={member.id}
+                      className="flex items-center gap-3 p-3 bg-mantle border border-surface0 rounded-lg cursor-pointer hover:bg-surface0 transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedParticipants.some(p => p.id === member.id)}
+                        onChange={() => handleParticipantToggle(member)}
+                        className="text-blue focus:ring-blue"
+                      />
+                      <Avatar user={member} size="sm" />
+                      <span className="font-medium">
+                        {member.id === currentUser.id ? 'You' : member.name}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Split Method */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  How should this be split?
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['equally', 'exact', 'percentage'] as SplitMethod[]).map(method => (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => setSplitMethod(method)}
+                      className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                        splitMethod === method
+                          ? 'bg-blue text-base border-blue'
+                          : 'bg-mantle text-text border-surface0 hover:bg-surface0'
+                      }`}
+                    >
+                      {method === 'equally' ? 'Equally' : 
+                       method === 'exact' ? 'Exact Amounts' : 'Percentage'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Split Details */}
+              {selectedParticipants.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Split details
+                  </label>
+                  
+                  {splitMethod === 'equally' && (
+                    <div className="bg-surface0 p-4 rounded-lg">
+                      <p className="text-sm text-subtext1">
+                        Split equally among {isOwedFullAmount && paidBy.id === currentUser.id 
+                          ? selectedParticipants.length - 1 
+                          : selectedParticipants.length} people
+                      </p>
+                      {amount && parseFloat(amount) > 0 && (
+                        <p className="text-sm text-subtext1 mt-1">
+                          ${(parseFloat(amount) / (isOwedFullAmount && paidBy.id === currentUser.id 
+                            ? selectedParticipants.length - 1 
+                            : selectedParticipants.length)).toFixed(2)} each
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {splitMethod === 'exact' && (
+                    <div className="space-y-3">
+                      {selectedParticipants
+                        .filter(p => !(isOwedFullAmount && paidBy.id === currentUser.id && p.id === currentUser.id))
+                        .map(participant => (
+                        <div key={participant.id} className="flex items-center gap-3">
+                          <Avatar user={participant} size="sm" />
+                          <span className="font-medium flex-1">
+                            {participant.id === currentUser.id ? 'You' : participant.name}
+                          </span>
+                          <div className="relative w-24">
+                            <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-subtext1 text-sm">
+                              $
+                            </span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={exactAmounts[participant.id] || ''}
+                              onChange={(e) => handleExactAmountChange(participant.id, e.target.value)}
+                              className="w-full pl-6 pr-2 py-1 text-sm bg-mantle border border-surface0 rounded focus:outline-none focus:ring-1 focus:ring-blue"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                      {!validation.isValid && validation.error && (
+                        <p className="text-sm text-red">{validation.error}</p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {splitMethod === 'percentage' && (
+                    <div className="space-y-3">
+                      {selectedParticipants
+                        .filter(p => !(isOwedFullAmount && paidBy.id === currentUser.id && p.id === currentUser.id))
+                        .map(participant => (
+                        <div key={participant.id} className="flex items-center gap-3">
+                          <Avatar user={participant} size="sm" />
+                          <span className="font-medium flex-1">
+                            {participant.id === currentUser.id ? 'You' : participant.name}
+                          </span>
+                          <div className="relative w-24">
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              max="100"
+                              value={percentages[participant.id] || ''}
+                              onChange={(e) => handlePercentageChange(participant.id, e.target.value)}
+                              className="w-full pl-2 pr-6 py-1 text-sm bg-mantle border border-surface0 rounded focus:outline-none focus:ring-1 focus:ring-blue"
+                            />
+                            <span className="absolute right-2 top-1/2 transform -translate-y-1/2 text-subtext1 text-sm">
+                              %
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                      {!validation.isValid && validation.error && (
+                        <p className="text-sm text-red">{validation.error}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+          
+          {/* Simple Split Info */}
+          {!isAdvanced && selectedGroup && (
             <div className="bg-surface0 p-4 rounded-lg">
               <h3 className="font-medium mb-2">Split</h3>
               <p className="text-sm text-subtext1">

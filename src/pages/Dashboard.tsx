@@ -1,32 +1,44 @@
 import React from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Users } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
-import { currentUser } from '../lib/mockdata';
+import { currentUser, users } from '../lib/mockdata';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
+import { Avatar } from '../components/Avatar';
+import type { User } from '../lib/types';
 
 export const Dashboard: React.FC = () => {
   const { groups, expenses, actions } = useAppStore();
   
-  // Calculate total amounts owed and owing
-  const calculateTotals = () => {
-    let totalOwed = 0; // Amount others owe you
-    let totalOwing = 0; // Amount you owe others
+  // Calculate net balance between currentUser and each other user
+  const calculatePersonalBalances = () => {
+    const balances: { [userId: string]: number } = {};
     
-    expenses.forEach(expense => {
-      const userParticipant = expense.participants.find(p => p.user.id === currentUser.id);
-      if (!userParticipant) return;
-      
-      if (expense.paidBy.id === currentUser.id) {
-        // You paid, others owe you
-        totalOwed += expense.amount - userParticipant.share;
-      } else {
-        // Someone else paid, you owe them
-        totalOwing += userParticipant.share;
+    // Initialize balances for all users except current user
+    users.forEach(user => {
+      if (user.id !== currentUser.id) {
+        balances[user.id] = 0;
       }
     });
     
-    return { totalOwed, totalOwing };
+    expenses.forEach(expense => {
+      const currentUserParticipant = expense.participants.find(p => p.user.id === currentUser.id);
+      if (!currentUserParticipant) return;
+      
+      if (expense.paidBy.id === currentUser.id) {
+        // Current user paid, others owe them
+        expense.participants.forEach(participant => {
+          if (participant.user.id !== currentUser.id) {
+            balances[participant.user.id] += participant.share;
+          }
+        });
+      } else {
+        // Someone else paid, current user owes them
+        balances[expense.paidBy.id] -= currentUserParticipant.share;
+      }
+    });
+    
+    return balances;
   };
   
   // Calculate net balance for a specific group
@@ -48,28 +60,86 @@ export const Dashboard: React.FC = () => {
     return balance;
   };
   
-  const { totalOwed, totalOwing } = calculateTotals();
+  const personalBalances = calculatePersonalBalances();
+  
+  // Separate users who owe you vs users you owe
+  const usersWhoOweYou = users.filter(user => 
+    user.id !== currentUser.id && personalBalances[user.id] > 0
+  );
+  
+  const usersYouOwe = users.filter(user => 
+    user.id !== currentUser.id && personalBalances[user.id] < 0
+  );
   
   return (
     <div className="min-h-screen bg-base text-text p-4">
       <div className="max-w-md mx-auto">
         {/* Header */}
-        <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <Button
+            onClick={() => actions.navigateTo('create-group')}
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <Users size={16} />
+            Create Group
+          </Button>
+        </div>
         
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <Card>
-            <div className="text-center">
-              <p className="text-sm text-subtext1 mb-1">Total you owe</p>
-              <p className="text-xl font-bold text-red">${totalOwing.toFixed(2)}</p>
-            </div>
-          </Card>
-          <Card>
-            <div className="text-center">
-              <p className="text-sm text-subtext1 mb-1">Total you are owed</p>
-              <p className="text-xl font-bold text-green">${totalOwed.toFixed(2)}</p>
-            </div>
-          </Card>
+        {/* Personal Balances Section */}
+        <div className="mb-6">
+          {/* Who Owes You */}
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold mb-3">Who Owes You</h2>
+            {usersWhoOweYou.length === 0 ? (
+              <Card>
+                <p className="text-center text-subtext1">You haven't lent any money.</p>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {usersWhoOweYou.map(user => (
+                  <Card key={user.id}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Avatar user={user} />
+                        <span className="font-medium">{user.name}</span>
+                      </div>
+                      <p className="font-bold text-green">
+                        +${personalBalances[user.id].toFixed(2)}
+                      </p>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          {/* Who You Owe */}
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold mb-3">Who You Owe</h2>
+            {usersYouOwe.length === 0 ? (
+              <Card>
+                <p className="text-center text-subtext1">You're all settled up!</p>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {usersYouOwe.map(user => (
+                  <Card key={user.id}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Avatar user={user} />
+                        <span className="font-medium">{user.name}</span>
+                      </div>
+                      <p className="font-bold text-red">
+                        ${Math.abs(personalBalances[user.id]).toFixed(2)}
+                      </p>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         
         {/* Groups Section */}
