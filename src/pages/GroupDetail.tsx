@@ -198,21 +198,23 @@ export const GroupDetail: React.FC = () => {
                         {expense.history && expense.history.length > 0 && (
                           <div className="border-t border-surface0 p-4">
                             <h4 className="font-medium text-sm mb-3">History</h4>
-                            <div className="space-y-3">
+                            <div className="space-y-4">
                               {expense.history.map((entry, index) => (
-                                <div key={index} className="flex items-center gap-3 text-xs">
+                                <div key={index} className="flex items-start gap-3 text-xs">
                                   <Avatar user={entry.actor} size="xs" />
-                                  <p className="text-subtext1">
-                                    <span className="font-medium text-text">
-                                      {entry.actor.id === currentUser.id ? "You" : entry.actor.name}
-                                    </span>{" "}
-                                    {entry.action} on {formatDate(entry.timestamp)}.
+                                  <div className="flex-1">
+                                    <p className="text-subtext1">
+                                      <span className="font-medium text-text">
+                                        {entry.actor.id === currentUser.id ? "You" : entry.actor.name}
+                                      </span>{" "}
+                                      {entry.action} on {formatDate(entry.timestamp)}.
+                                    </p>
                                     {entry.details && (
-                                      <span className="block text-subtext0 mt-1">
+                                      <div className="mt-2 p-2 bg-crust rounded-md text-subtext0 whitespace-pre-wrap text-[11px] leading-relaxed font-mono">
                                         {entry.details}
-                                      </span>
+                                      </div>
                                     )}
-                                  </p>
+                                  </div>
                                 </div>
                               ))}
                             </div>

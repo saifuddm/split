@@ -74,18 +74,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       const originalExpense = get().expenses.find(e => e.id === expenseId);
       if (!originalExpense) return;
 
-      // Generate the detailed action string
-      const actionDescription = generateAuditDetails(originalExpense, updatedData);
+      // Generate the detailed action and details object
+      const auditInfo = generateAuditDetails(originalExpense, updatedData);
 
       const newHistoryEntry: AuditEntry = {
         actor: currentUser,
-        action: actionDescription, // Use the dynamic description here
+        action: auditInfo.action,
+        details: auditInfo.details, // Assign the new details string
         timestamp: new Date().toISOString(),
       };
 
       const updatedExpense: Expense = {
-        ...originalExpense, // Start with original to preserve ID and history
-        ...updatedData, // Overwrite with new data
+        ...originalExpense,
+        ...updatedData,
         history: [...(originalExpense.history || []), newHistoryEntry],
       };
 
@@ -93,7 +94,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         expenses: state.expenses.map(e =>
           e.id === expenseId ? updatedExpense : e,
         ),
-        editingExpenseId: null, // Clear editing state
+        editingExpenseId: null,
       }));
     },
     clearEditingExpense: () => {

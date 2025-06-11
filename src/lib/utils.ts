@@ -77,88 +77,89 @@ export const calculateSimplifiedDebts = (members: User[], expenses: Expense[]): 
 export const generateAuditDetails = (
   original: Expense,
   updated: Omit<Expense, "id" | "history">,
-): string => {
-  const changes: string[] = [];
+): { action: string; details?: string } => {
+  const summaryChanges: string[] = [];
+  const detailChanges: string[] = [];
 
-  // Compare description
+  // 1. Compare Description
   if (original.description !== updated.description) {
-    changes.push(`the description from "${original.description}" to "${updated.description}"`);
+    summaryChanges.push("the description");
+    detailChanges.push(`Description: "${original.description}" → "${updated.description}"`);
   }
 
-  // Compare amount
+  // 2. Compare Amount
   if (Math.abs(original.amount - updated.amount) > 0.01) {
-    changes.push(
-      `the amount from $${original.amount.toFixed(2)} to $${updated.amount.toFixed(2)}`,
+    summaryChanges.push("the amount");
+    detailChanges.push(
+      `Amount: $${original.amount.toFixed(2)} → $${updated.amount.toFixed(2)}`,
     );
   }
 
-  // Compare payer
+  // 3. Compare Payer
   if (original.paidBy.id !== updated.paidBy.id) {
-    changes.push(
-      `the payer from ${original.paidBy.name} to ${updated.paidBy.name}`,
-    );
+    summaryChanges.push("the payer");
+    detailChanges.push(`Payer: ${original.paidBy.name} → ${updated.paidBy.name}`);
   }
 
-  // Compare participants (who's involved)
-  const originalParticipantIds = new Set(original.participants.map(p => p.user.id));
-  const updatedParticipantIds = new Set(updated.participants.map(p => p.user.id));
-  
-  const addedParticipants = updated.participants.filter(p => !originalParticipantIds.has(p.user.id));
-  const removedParticipants = original.participants.filter(p => !updatedParticipantIds.has(p.user.id));
-  
-  if (addedParticipants.length > 0 || removedParticipants.length > 0) {
-    const participantChanges: string[] = [];
-    if (addedParticipants.length > 0) {
-      participantChanges.push(`added ${addedParticipants.map(p => p.user.name).join(', ')}`);
+  // 4. Compare Split Allocation & Participants
+  const originalParticipants = new Map(
+    original.participants.map(p => [p.user.id, p]),
+  );
+  const updatedParticipants = new Map(
+    updated.participants.map(p => [p.user.id, p]),
+  );
+  const allInvolvedIds = new Set([
+    ...originalParticipants.keys(),
+    ...updatedParticipants.keys(),
+  ]);
+
+  let splitHasChanged = false;
+  const splitDetailLines: string[] = [];
+
+  allInvolvedIds.forEach(id => {
+    const originalParticipant = originalParticipants.get(id);
+    const updatedParticipant = updatedParticipants.get(id);
+    const userName = originalParticipant?.user.name || updatedParticipant?.user.name || "";
+
+    if (!originalParticipant) {
+      // User was added
+      splitHasChanged = true;
+      splitDetailLines.push(`  • ${userName} (Added): $${updatedParticipant!.share.toFixed(2)}`);
+    } else if (!updatedParticipant) {
+      // User was removed
+      splitHasChanged = true;
+      splitDetailLines.push(`  • ${userName} (Removed): was $${originalParticipant.share.toFixed(2)}`);
+    } else if (Math.abs(originalParticipant.share - updatedParticipant.share) > 0.01) {
+      // User's share changed
+      splitHasChanged = true;
+      splitDetailLines.push(
+        `  • ${userName}: $${originalParticipant.share.toFixed(2)} → $${updatedParticipant.share.toFixed(2)}`,
+      );
     }
-    if (removedParticipants.length > 0) {
-      participantChanges.push(`removed ${removedParticipants.map(p => p.user.name).join(', ')}`);
-    }
-    changes.push(`the participants (${participantChanges.join(' and ')})`);
+  });
+
+  if (splitHasChanged) {
+    summaryChanges.push("the split");
+    detailChanges.push(`Split Details:\n${splitDetailLines.join("\n")}`);
+  }
+
+  // --- FORMATTING LOGIC ---
+  if (summaryChanges.length === 0) {
+    return { action: "made an update to this expense" };
+  }
+
+  let action: string;
+  if (summaryChanges.length === 1) {
+    action = `updated ${summaryChanges[0]}`;
+  } else if (summaryChanges.length === 2) {
+    action = `updated ${summaryChanges[0]} and ${summaryChanges[1]}`;
   } else {
-    // Compare split allocation (only if participants are the same)
-    const originalSplitString = original.participants
-      .map(p => `${p.user.id}:${p.share.toFixed(2)}`)
-      .sort()
-      .join(",");
-    const updatedSplitString = updated.participants
-      .map(p => `${p.user.id}:${p.share.toFixed(2)}`)
-      .sort()
-      .join(",");
-
-    if (originalSplitString !== updatedSplitString) {
-      // Check if it's a split method change (equal vs unequal)
-      const originalEqualShare = original.amount / original.participants.length;
-      const updatedEqualShare = updated.amount / updated.participants.length;
-      
-      const originalIsEqual = original.participants.every(p => Math.abs(p.share - originalEqualShare) < 0.01);
-      const updatedIsEqual = updated.participants.every(p => Math.abs(p.share - updatedEqualShare) < 0.01);
-      
-      if (originalIsEqual && !updatedIsEqual) {
-        changes.push("the split method from equal to custom amounts");
-      } else if (!originalIsEqual && updatedIsEqual) {
-        changes.push("the split method from custom amounts to equal");
-      } else {
-        changes.push("the split allocation");
-      }
-    }
+    const lastChange = summaryChanges.pop();
+    action = `updated ${summaryChanges.join(", ")}, and ${lastChange}`;
   }
 
-  // --- CORRECTED FORMATTING LOGIC ---
-  if (changes.length === 0) {
-    // Fallback for when no specific change is detected
-    return "made an update to this expense";
-  }
-
-  if (changes.length === 1) {
-    return `updated ${changes[0]}`;
-  }
-
-  if (changes.length === 2) {
-    return `updated ${changes[0]} and ${changes[1]}`;
-  }
-
-  // For 3 or more changes, use commas and a final "and"
-  const lastChange = changes.pop(); // Remove and get the last item
-  return `updated ${changes.join(", ")}, and ${lastChange}`;
+  return {
+    action,
+    details: detailChanges.length > 0 ? detailChanges.join("\n\n") : undefined, // Separate sections with double newline
+  };
 };
