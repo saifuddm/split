@@ -1,43 +1,50 @@
-import { Globe, MoonIcon, SunIcon } from "lucide-react";
+import React, { useEffect } from "react";
 import { useStore } from "./data/store";
-import { useEffect } from "react";
+import { useAppStore } from "./data/useAppStore";
+import { Dashboard } from "./pages/Dashboard";
+import { GroupDetail } from "./pages/GroupDetail";
+import { AddExpense } from "./pages/AddExpense";
 
 function App() {
-  const { text, setText, isDark, toggleDarkMode, initializeDarkMode } =
-    useStore();
+  const { isDark, toggleDarkMode, initializeDarkMode } = useStore();
+  const { currentPage } = useAppStore();
 
   // Initialize dark mode based on system preference
   useEffect(() => {
     initializeDarkMode();
   }, [initializeDarkMode]);
 
-  return (
-    <>
-      <div className="m-5 flex items-baseline gap-2">
-        <h1 className="text-xl">{text}</h1>
-        <button
-          onClick={() => setText("Hello World")}
-          className="cursor-pointer"
-        >
-          <Globe size={20} className="text-peach animate-spin" />
-        </button>
-      </div>
+  const renderCurrentPage = () => {
+    switch (currentPage) {
+      case 'dashboard':
+        return <Dashboard />;
+      case 'group-details':
+        return <GroupDetail />;
+      case 'add-expense':
+        return <AddExpense />;
+      default:
+        return <Dashboard />;
+    }
+  };
 
-      <div className="bg-mantle absolute bottom-5 left-5 w-fit space-x-2 rounded-md p-2">
+  return (
+    <div className="min-h-screen bg-base text-text">
+      {renderCurrentPage()}
+      
+      {/* Dark mode toggle - positioned in top right */}
+      <div className="fixed top-4 right-4 z-50">
         <button
-          className={`${!isDark ? "bg-crust text-yellow" : ""} rounded-md p-2`}
           onClick={toggleDarkMode}
+          className="bg-mantle border border-surface0 rounded-lg p-2 hover:bg-surface0 transition-colors"
         >
-          <SunIcon size={20} />
-        </button>
-        <button
-          className={`${isDark ? "bg-crust text-blue" : ""} rounded-md p-2`}
-          onClick={toggleDarkMode}
-        >
-          <MoonIcon size={20} />
+          {isDark ? (
+            <span className="text-yellow">☀️</span>
+          ) : (
+            <span className="text-blue">🌙</span>
+          )}
         </button>
       </div>
-    </>
+    </div>
   );
 }
 
