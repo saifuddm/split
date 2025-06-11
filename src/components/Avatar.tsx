@@ -4,9 +4,10 @@ import type { User } from '../lib/types';
 interface AvatarProps {
   user: User;
   size?: 'xs' | 'sm' | 'md' | 'lg';
+  className?: string;
 }
 
-export const Avatar: React.FC<AvatarProps> = ({ user, size = 'md' }) => {
+export const Avatar: React.FC<AvatarProps> = ({ user, size = 'md', className = '' }) => {
   const sizeClasses = {
     xs: 'w-6 h-6 text-xs',
     sm: 'w-8 h-8 text-sm',
@@ -34,14 +35,14 @@ export const Avatar: React.FC<AvatarProps> = ({ user, size = 'md' }) => {
       <img
         src={user.avatarUrl}
         alt={user.name}
-        className={`${sizeClasses[size]} rounded-full object-cover`}
+        className={`${sizeClasses[size]} rounded-full object-cover ${className}`}
       />
     );
   }
   
   return (
     <div
-      className={`${sizeClasses[size]} ${getBackgroundColor(user.name)} rounded-full flex items-center justify-center text-base font-medium`}
+      className={`${sizeClasses[size]} ${getBackgroundColor(user.name)} rounded-full flex items-center justify-center text-base font-medium ${className}`}
     >
       {getInitials(user.name)}
     </div>

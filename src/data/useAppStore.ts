@@ -16,7 +16,7 @@ interface AppState {
   groups: Group[];
   expenses: Expense[];
   actions: {
-    navigateTo: (page: Page, groupId?: string) => void;
+    navigateTo: (page: Page, groupId?: string | null) => void;
     addExpense: (newExpense: Omit<Expense, "id" | "history">) => void;
     createGroup: (groupName: string, members: User[]) => void;
     startEditingExpense: (expenseId: string) => void;

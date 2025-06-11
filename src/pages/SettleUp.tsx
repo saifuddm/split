@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { ArrowLeft, CheckCircle, Handshake } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
 import { currentUser, users } from '../lib/mockdata';

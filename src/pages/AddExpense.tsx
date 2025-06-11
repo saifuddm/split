@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
 import { currentUser } from '../lib/mockdata';
 import { Button } from '../components/Button';

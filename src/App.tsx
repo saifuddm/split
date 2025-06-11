@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { useStore } from "./data/store";
 import { useAppStore } from "./data/useAppStore";
 import { Dashboard } from "./pages/Dashboard";
