@@ -6,7 +6,7 @@ import {
 } from "../lib/mockdata";
 import type { Group, Expense, User } from "../lib/types";
 
-type Page = "dashboard" | "group-details" | "add-expense";
+type Page = "dashboard" | "group-details" | "add-expense" | "create-group";
 
 interface AppState {
   currentPage: Page;
@@ -16,6 +16,7 @@ interface AppState {
   actions: {
     navigateTo: (page: Page, groupId?: string) => void;
     addExpense: (newExpense: Omit<Expense, "id">) => void;
+    createGroup: (groupName: string, members: User[]) => void;
   };
 }
 
@@ -34,5 +35,18 @@ export const useAppStore = create<AppState>((set) => ({
           { ...newExpense, id: `exp-${Date.now()}` },
         ],
       })),
+    createGroup: (groupName, members) => {
+      const newGroup: Group = {
+        id: `group-${Date.now()}`,
+        name: groupName,
+        // Ensure the current user is always included
+        members: [currentUser, ...members],
+      };
+      set((state) => ({
+        groups: [...state.groups, newGroup],
+      }));
+      // Navigate to the new group's page after creation
+      get().actions.navigateTo("group-details", newGroup.id);
+    },
   },
 }));
