@@ -4,6 +4,7 @@ import {
   groups as initialGroups,
   expenses as initialExpenses,
 } from "../lib/mockdata";
+import { generateAuditDetails } from "../lib/utils";
 import type { Group, Expense, User, AuditEntry } from "../lib/types";
 
 type Page = "dashboard" | "group-details" | "add-expense" | "create-group";
@@ -73,16 +74,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       const originalExpense = get().expenses.find(e => e.id === expenseId);
       if (!originalExpense) return;
 
+      // Generate the detailed action string
+      const actionDescription = generateAuditDetails(originalExpense, updatedData);
+
       const newHistoryEntry: AuditEntry = {
         actor: currentUser,
-        action: "updated this expense",
+        action: actionDescription, // Use the dynamic description here
         timestamp: new Date().toISOString(),
-        // Optional: Add more detail about what changed here later
       };
 
       const updatedExpense: Expense = {
-        ...updatedData,
-        id: expenseId,
+        ...originalExpense, // Start with original to preserve ID and history
+        ...updatedData, // Overwrite with new data
         history: [...(originalExpense.history || []), newHistoryEntry],
       };
 

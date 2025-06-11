@@ -73,3 +73,84 @@ export const calculateSimplifiedDebts = (members: User[], expenses: Expense[]): 
   
   return simplifiedDebts;
 };
+
+export const generateAuditDetails = (
+  original: Expense,
+  updated: Omit<Expense, "id" | "history">,
+): string => {
+  const changes: string[] = [];
+
+  // Compare description
+  if (original.description !== updated.description) {
+    changes.push(`the description from "${original.description}" to "${updated.description}"`);
+  }
+
+  // Compare amount
+  if (Math.abs(original.amount - updated.amount) > 0.01) {
+    changes.push(
+      `the amount from $${original.amount.toFixed(2)} to $${updated.amount.toFixed(2)}`,
+    );
+  }
+
+  // Compare payer
+  if (original.paidBy.id !== updated.paidBy.id) {
+    changes.push(
+      `the payer from ${original.paidBy.name} to ${updated.paidBy.name}`,
+    );
+  }
+
+  // Compare participants (who's involved)
+  const originalParticipantIds = new Set(original.participants.map(p => p.user.id));
+  const updatedParticipantIds = new Set(updated.participants.map(p => p.user.id));
+  
+  const addedParticipants = updated.participants.filter(p => !originalParticipantIds.has(p.user.id));
+  const removedParticipants = original.participants.filter(p => !updatedParticipantIds.has(p.user.id));
+  
+  if (addedParticipants.length > 0 || removedParticipants.length > 0) {
+    const participantChanges: string[] = [];
+    if (addedParticipants.length > 0) {
+      participantChanges.push(`added ${addedParticipants.map(p => p.user.name).join(', ')}`);
+    }
+    if (removedParticipants.length > 0) {
+      participantChanges.push(`removed ${removedParticipants.map(p => p.user.name).join(', ')}`);
+    }
+    changes.push(`the participants (${participantChanges.join(' and ')})`);
+  } else {
+    // Compare split allocation (only if participants are the same)
+    const originalSplitString = original.participants
+      .map(p => `${p.user.id}:${p.share.toFixed(2)}`)
+      .sort()
+      .join(",");
+    const updatedSplitString = updated.participants
+      .map(p => `${p.user.id}:${p.share.toFixed(2)}`)
+      .sort()
+      .join(",");
+
+    if (originalSplitString !== updatedSplitString) {
+      // Check if it's a split method change (equal vs unequal)
+      const originalEqualShare = original.amount / original.participants.length;
+      const updatedEqualShare = updated.amount / updated.participants.length;
+      
+      const originalIsEqual = original.participants.every(p => Math.abs(p.share - originalEqualShare) < 0.01);
+      const updatedIsEqual = updated.participants.every(p => Math.abs(p.share - updatedEqualShare) < 0.01);
+      
+      if (originalIsEqual && !updatedIsEqual) {
+        changes.push("the split method from equal to custom amounts");
+      } else if (!originalIsEqual && updatedIsEqual) {
+        changes.push("the split method from custom amounts to equal");
+      } else {
+        changes.push("the split allocation");
+      }
+    }
+  }
+
+  // Format the output
+  if (changes.length === 0) {
+    return "made an update to this expense";
+  }
+  if (changes.length === 1) {
+    return `updated ${changes[0]}`;
+  }
+
+  return `updated ${changes.slice(0, -1).join(", ")} and ${changes.slice(-1)}`;
+};
