@@ -2,73 +2,79 @@ import React from 'react';
 import { Plus, Users } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
 import { currentUser, users } from '../lib/mockdata';
+import { calculateSimplifiedDebts } from '../lib/utils';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
-import type { User } from '../lib/types';
 
 export const Dashboard: React.FC = () => {
   const { groups, expenses, actions } = useAppStore();
   
-  // Calculate net balance between currentUser and each other user
-  const calculatePersonalBalances = () => {
-    const balances: { [userId: string]: number } = {};
+  // Calculate overall balances by first settling within each group, then aggregating
+  const calculateOverallBalances = () => {
+    const overallBalances: { [userId: string]: number } = {};
     
     // Initialize balances for all users except current user
     users.forEach(user => {
       if (user.id !== currentUser.id) {
-        balances[user.id] = 0;
+        overallBalances[user.id] = 0;
       }
     });
     
-    expenses.forEach(expense => {
-      const currentUserParticipant = expense.participants.find(p => p.user.id === currentUser.id);
-      if (!currentUserParticipant) return;
+    // Process each group separately
+    groups.forEach(group => {
+      // Get expenses for this specific group
+      const groupExpenses = expenses.filter(exp => exp.groupId === group.id);
       
-      if (expense.paidBy.id === currentUser.id) {
-        // Current user paid, others owe them
-        expense.participants.forEach(participant => {
-          if (participant.user.id !== currentUser.id) {
-            balances[participant.user.id] += participant.share;
-          }
-        });
-      } else {
-        // Someone else paid, current user owes them
-        balances[expense.paidBy.id] -= currentUserParticipant.share;
-      }
+      // Calculate simplified debts within this group
+      const simplifiedGroupDebts = calculateSimplifiedDebts(group.members, groupExpenses);
+      
+      // Aggregate the simplified debts into overall balances
+      simplifiedGroupDebts.forEach(debt => {
+        if (debt.debtor.id === currentUser.id) {
+          // Current user owes money to the creditor
+          overallBalances[debt.creditor.id] -= debt.amount;
+        } else if (debt.creditor.id === currentUser.id) {
+          // Current user is owed money by the debtor
+          overallBalances[debt.debtor.id] += debt.amount;
+        }
+      });
     });
     
-    return balances;
+    return overallBalances;
   };
   
-  // Calculate net balance for a specific group
+  // Calculate net balance for a specific group (for group cards)
   const getGroupBalance = (groupId: string) => {
-    const groupExpenses = expenses.filter(exp => exp.groupId === groupId);
-    let balance = 0;
+    const group = groups.find(g => g.id === groupId);
+    if (!group) return 0;
     
-    groupExpenses.forEach(expense => {
-      const userParticipant = expense.participants.find(p => p.user.id === currentUser.id);
-      if (!userParticipant) return;
-      
-      if (expense.paidBy.id === currentUser.id) {
-        balance += expense.amount - userParticipant.share;
-      } else {
-        balance -= userParticipant.share;
+    const groupExpenses = expenses.filter(exp => exp.groupId === groupId);
+    const simplifiedGroupDebts = calculateSimplifiedDebts(group.members, groupExpenses);
+    
+    let balance = 0;
+    simplifiedGroupDebts.forEach(debt => {
+      if (debt.debtor.id === currentUser.id) {
+        // Current user owes money
+        balance -= debt.amount;
+      } else if (debt.creditor.id === currentUser.id) {
+        // Current user is owed money
+        balance += debt.amount;
       }
     });
     
     return balance;
   };
   
-  const personalBalances = calculatePersonalBalances();
+  const overallBalances = calculateOverallBalances();
   
   // Separate users who owe you vs users you owe
   const usersWhoOweYou = users.filter(user => 
-    user.id !== currentUser.id && personalBalances[user.id] > 0
+    user.id !== currentUser.id && overallBalances[user.id] > 0
   );
   
   const usersYouOwe = users.filter(user => 
-    user.id !== currentUser.id && personalBalances[user.id] < 0
+    user.id !== currentUser.id && overallBalances[user.id] < 0
   );
   
   return (
@@ -106,7 +112,7 @@ export const Dashboard: React.FC = () => {
                         <span className="font-medium">{user.name}</span>
                       </div>
                       <p className="font-bold text-green">
-                        +${personalBalances[user.id].toFixed(2)}
+                        +${overallBalances[user.id].toFixed(2)}
                       </p>
                     </div>
                   </Card>
@@ -132,7 +138,7 @@ export const Dashboard: React.FC = () => {
                         <span className="font-medium">{user.name}</span>
                       </div>
                       <p className="font-bold text-red">
-                        ${Math.abs(personalBalances[user.id]).toFixed(2)}
+                        ${Math.abs(overallBalances[user.id]).toFixed(2)}
                       </p>
                     </div>
                   </Card>

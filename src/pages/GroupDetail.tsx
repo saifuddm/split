@@ -2,16 +2,10 @@ import React, { useState } from 'react';
 import { ArrowLeft, Plus, ChevronDown } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
 import { currentUser } from '../lib/mockdata';
+import { calculateSimplifiedDebts } from '../lib/utils';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
-import type { User } from '../lib/types';
-
-interface SimplifiedDebt {
-  debtor: User;
-  creditor: User;
-  amount: number;
-}
 
 export const GroupDetail: React.FC = () => {
   const { activeGroupId, groups, expenses, actions } = useAppStore();
@@ -33,86 +27,11 @@ export const GroupDetail: React.FC = () => {
     );
   }
   
-  // Calculate balances for each member
-  const calculateMemberBalances = () => {
-    const balances: { [userId: string]: number } = {};
-    
-    // Initialize balances
-    group.members.forEach(member => {
-      balances[member.id] = 0;
-    });
-    
-    // Calculate balances from expenses
-    groupExpenses.forEach(expense => {
-      expense.participants.forEach(participant => {
-        if (expense.paidBy.id === participant.user.id) {
-          // This person paid, so they are owed the difference
-          balances[participant.user.id] += expense.amount - participant.share;
-        } else {
-          // This person didn't pay, so they owe their share
-          balances[participant.user.id] -= participant.share;
-        }
-      });
-    });
-    
-    return balances;
-  };
-  
-  // Calculate simplified debts using settle up algorithm
-  const calculateSimplifiedDebts = (): SimplifiedDebt[] => {
-    const memberBalances = calculateMemberBalances();
-    
-    // Create arrays of debtors and creditors
-    const debtors = group.members
-      .filter(member => memberBalances[member.id] < -0.01) // Using small threshold for floating point comparison
-      .map(member => ({ user: member, balance: memberBalances[member.id] }));
-    
-    const creditors = group.members
-      .filter(member => memberBalances[member.id] > 0.01)
-      .map(member => ({ user: member, balance: memberBalances[member.id] }));
-    
-    const simplifiedDebts: SimplifiedDebt[] = [];
-    
-    // Create working copies to avoid mutating the original arrays
-    const workingDebtors = [...debtors];
-    const workingCreditors = [...creditors];
-    
-    while (workingDebtors.length > 0 && workingCreditors.length > 0) {
-      const currentDebtor = workingDebtors[0];
-      const currentCreditor = workingCreditors[0];
-      
-      const transferAmount = Math.min(
-        Math.abs(currentDebtor.balance),
-        currentCreditor.balance
-      );
-      
-      simplifiedDebts.push({
-        debtor: currentDebtor.user,
-        creditor: currentCreditor.user,
-        amount: transferAmount
-      });
-      
-      // Update balances
-      currentDebtor.balance += transferAmount;
-      currentCreditor.balance -= transferAmount;
-      
-      // Remove settled parties
-      if (Math.abs(currentDebtor.balance) < 0.01) {
-        workingDebtors.shift();
-      }
-      if (Math.abs(currentCreditor.balance) < 0.01) {
-        workingCreditors.shift();
-      }
-    }
-    
-    return simplifiedDebts;
-  };
-  
   const handleToggleExpense = (expenseId: string) => {
     setExpandedExpenseId(prevId => (prevId === expenseId ? null : expenseId));
   };
   
-  const simplifiedDebts = calculateSimplifiedDebts();
+  const simplifiedDebts = calculateSimplifiedDebts(group.members, groupExpenses);
   
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
