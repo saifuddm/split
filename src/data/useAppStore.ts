@@ -20,7 +20,7 @@ interface AppState {
   };
 }
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
   currentPage: "dashboard",
   activeGroupId: null,
   groups: initialGroups,
