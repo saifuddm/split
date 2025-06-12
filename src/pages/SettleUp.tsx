@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, CheckCircle, Handshake } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
-import { calculateSimplifiedDebts } from '../lib/utils';
+import { calculateSimplifiedDebts, calculateNetBalanceBetweenTwoUsers } from '../lib/utils';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
@@ -16,80 +16,22 @@ export const SettleUp: React.FC = () => {
   const [includeIndividualDebt, setIncludeIndividualDebt] = useState(false);
   const [step, setStep] = useState<'select-user' | 'specify-amounts' | 'confirmation'>('select-user');
 
-  // Calculate overall balances to find users you owe
-  const calculateOverallBalances = () => {
-    const overallBalances: { [userId: string]: number } = {};
-    
-    // Initialize balances for all users except current user
-    users.forEach(user => {
-      if (user.id !== currentUser.id) {
-        overallBalances[user.id] = 0;
-      }
-    });
-    
-    // Process each group separately
-    groups.forEach(group => {
-      // Get expenses for this specific group
-      const groupExpenses = expenses.filter(exp => exp.groupId === group.id);
-      
-      // Calculate simplified debts within this group
-      const simplifiedGroupDebts = calculateSimplifiedDebts(group.members, groupExpenses);
-      
-      // Aggregate the simplified debts into overall balances
-      simplifiedGroupDebts.forEach(debt => {
-        if (debt.debtor.id === currentUser.id) {
-          // Current user owes money to the creditor
-          overallBalances[debt.creditor.id] -= debt.amount;
-        } else if (debt.creditor.id === currentUser.id) {
-          // Current user is owed money by the debtor
-          overallBalances[debt.debtor.id] += debt.amount;
-        }
-      });
-    });
-    
-    // Process non-group expenses
-    const nonGroupExpenses = expenses.filter(exp => !exp.groupId);
-    nonGroupExpenses.forEach(expense => {
-      if (expense.isSettlement) {
-        // Special logic for settlement transactions
-        if (expense.paidBy.id === currentUser.id) {
-          // Current user paid someone
-          overallBalances[expense.participants[0].user.id] += expense.amount;
-        } else if (expense.participants[0].user.id === currentUser.id) {
-          // Someone paid current user
-          overallBalances[expense.paidBy.id] -= expense.amount;
-        }
-      } else {
-        // Regular non-group expense
-        expense.participants.forEach(participant => {
-          if (participant.user.id === currentUser.id) {
-            // Current user's involvement
-            if (expense.paidBy.id === currentUser.id) {
-              // Current user paid, so they are owed the difference
-              const otherParticipant = expense.participants.find(p => p.user.id !== currentUser.id);
-              if (otherParticipant) {
-                overallBalances[otherParticipant.user.id] += expense.amount - participant.share;
-              }
-            } else {
-              // Current user didn't pay, so they owe their share to the payer
-              overallBalances[expense.paidBy.id] -= participant.share;
-            }
-          } else if (expense.paidBy.id === currentUser.id) {
-            // Current user paid for someone else
-            overallBalances[participant.user.id] -= participant.share;
-          }
-        });
-      }
-    });
-    
-    return overallBalances;
-  };
-
-  const overallBalances = calculateOverallBalances();
+  // Calculate overall balances using the new utility function
+  const overallBalances: { [userId: string]: number } = {};
+  users.forEach(user => {
+    if (user.id !== currentUser.id) {
+      overallBalances[user.id] = calculateNetBalanceBetweenTwoUsers(
+        currentUser,
+        user,
+        groups,
+        expenses
+      );
+    }
+  });
   
   // Get users you owe money to
   const usersYouOwe = users.filter(user => 
-    user.id !== currentUser.id && overallBalances[user.id] < 0
+    user.id !== currentUser.id && overallBalances[user.id] < -0.01
   );
 
   // Calculate group-specific debts for the selected user
@@ -110,7 +52,7 @@ export const SettleUp: React.FC = () => {
         d.debtor.id === currentUser.id && d.creditor.id === user.id
       );
       
-      if (debt && debt.amount > 0) {
+      if (debt && debt.amount > 0.01) {
         groupDebts.push({
           groupId: group.id,
           groupName: group.name,
@@ -122,48 +64,19 @@ export const SettleUp: React.FC = () => {
     return groupDebts;
   };
 
-  // Calculate individual debt for the selected user
-  const getIndividualDebtForUser = (user: User) => {
-    let individualBalance = 0;
-    
-    const nonGroupExpenses = expenses.filter(exp => !exp.groupId);
-    nonGroupExpenses.forEach(expense => {
-      if (expense.isSettlement) {
-        // Handle settlement transactions
-        if (expense.paidBy.id === currentUser.id && expense.participants[0].user.id === user.id) {
-          // Current user paid the selected user
-          individualBalance += expense.amount;
-        } else if (expense.paidBy.id === user.id && expense.participants[0].user.id === currentUser.id) {
-          // Selected user paid current user
-          individualBalance -= expense.amount;
-        }
-      } else {
-        // Regular non-group expense
-        const currentUserParticipant = expense.participants.find(p => p.user.id === currentUser.id);
-        const otherUserParticipant = expense.participants.find(p => p.user.id === user.id);
-        
-        if (currentUserParticipant && otherUserParticipant) {
-          // Both users are involved
-          if (expense.paidBy.id === currentUser.id) {
-            // Current user paid, they are owed by the other user
-            individualBalance += otherUserParticipant.share;
-          } else if (expense.paidBy.id === user.id) {
-            // Other user paid, current user owes them
-            individualBalance -= currentUserParticipant.share;
-          }
-        }
-      }
-    });
-    
-    return Math.abs(individualBalance); // Return absolute value since we only show debts
-  };
-
   const selectedUserGroupDebts = selectedUser ? getGroupDebtsForUser(selectedUser) : [];
 
   const handleUserSelect = (user: User) => {
     setSelectedUser(user);
     const groupDebts = getGroupDebtsForUser(user);
-    const individualDebt = getIndividualDebtForUser(user);
+    
+    // Calculate individual debt using the new utility function
+    const individualDebt = calculateNetBalanceBetweenTwoUsers(
+      currentUser,
+      user,
+      [], // Empty groups array to calculate only individual expenses
+      expenses
+    );
     
     // Initialize selected settlements with all group debts
     const initialSettlements: { [groupId: string]: number } = {};
@@ -172,10 +85,11 @@ export const SettleUp: React.FC = () => {
     });
     setSelectedSettlements(initialSettlements);
     
-    // Set individual debt
-    setIndividualDebtAmount(individualDebt);
-    setIndividualSettlementAmount(individualDebt.toString());
-    setIncludeIndividualDebt(individualDebt > 0);
+    // Set individual debt (only if current user owes money)
+    const individualDebtOwed = Math.abs(Math.min(0, individualDebt));
+    setIndividualDebtAmount(individualDebtOwed);
+    setIndividualSettlementAmount(individualDebtOwed.toString());
+    setIncludeIndividualDebt(individualDebtOwed > 0.01);
     
     setStep('specify-amounts');
   };
@@ -371,7 +285,7 @@ export const SettleUp: React.FC = () => {
               )}
 
               {/* Individual Debts Section */}
-              {individualDebtAmount > 0 && (
+              {individualDebtAmount > 0.01 && (
                 <div>
                   <h3 className="font-medium mb-3">Individual Debts</h3>
                   <Card className="p-4">

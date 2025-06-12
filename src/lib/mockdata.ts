@@ -34,6 +34,7 @@ export const groups: Group[] = [
 ];
 
 export const expenses: Expense[] = [
+  // Group expenses
   {
     id: "exp-1",
     groupId: "group-1",
@@ -41,16 +42,16 @@ export const expenses: Expense[] = [
     amount: 900,
     paidBy: users[1], // Alice paid
     participants: [
-      { user: users[0], share: 300 },
-      { user: users[1], share: 300 },
-      { user: users[2], share: 300 },
+      { user: users[0], share: 300 }, // You owe 300
+      { user: users[1], share: 300 }, // Alice paid 300 for herself
+      { user: users[2], share: 300 }, // Bob owes 300
     ],
-    date: "2025-06-05T10:00:00Z",
+    date: "2025-01-05T10:00:00Z",
     history: [
       {
         actor: users[1], // Alice
         action: "created this expense",
-        timestamp: "2025-06-05T10:00:00Z",
+        timestamp: "2025-01-05T10:00:00Z",
       },
     ],
   },
@@ -61,16 +62,16 @@ export const expenses: Expense[] = [
     amount: 150,
     paidBy: users[0], // You paid
     participants: [
-      { user: users[0], share: 50 },
-      { user: users[1], share: 50 },
-      { user: users[2], share: 50 },
+      { user: users[0], share: 50 }, // You paid 50 for yourself
+      { user: users[1], share: 50 }, // Alice owes 50
+      { user: users[2], share: 50 }, // Bob owes 50
     ],
-    date: "2025-06-06T19:30:00Z",
+    date: "2025-01-06T19:30:00Z",
     history: [
       {
         actor: users[0], // You
         action: "created this expense",
-        timestamp: "2025-06-06T19:30:00Z",
+        timestamp: "2025-01-06T19:30:00Z",
       },
     ],
   },
@@ -81,19 +82,20 @@ export const expenses: Expense[] = [
     amount: 60,
     paidBy: users[3], // Charlie paid
     participants: [
-      { user: users[0], share: 30 },
-      { user: users[3], share: 30 },
+      { user: users[0], share: 30 }, // You owe 30
+      { user: users[3], share: 30 }, // Charlie paid 30 for himself
     ],
-    date: "2025-06-10T12:00:00Z",
+    date: "2025-01-10T12:00:00Z",
     history: [
       {
         actor: users[3], // Charlie
         action: "created this expense",
-        timestamp: "2025-06-10T12:00:00Z",
+        timestamp: "2025-01-10T12:00:00Z",
       },
     ],
   },
-  // Add a non-group expense for testing
+  
+  // Individual (non-group) expenses
   {
     id: "exp-4",
     description: "Coffee",
@@ -103,16 +105,15 @@ export const expenses: Expense[] = [
       { user: users[0], share: 6 }, // You owe 6
       { user: users[1], share: 6 }, // Alice paid 6 for herself
     ],
-    date: "2025-06-12T14:30:00Z",
+    date: "2025-01-12T14:30:00Z",
     history: [
       {
         actor: users[1], // Alice
         action: "created this expense",
-        timestamp: "2025-06-12T14:30:00Z",
+        timestamp: "2025-01-12T14:30:00Z",
       },
     ],
   },
-  // Add another non-group expense for testing
   {
     id: "exp-5",
     description: "Lunch",
@@ -122,12 +123,48 @@ export const expenses: Expense[] = [
       { user: users[0], share: 12 }, // You paid 12 for yourself
       { user: users[3], share: 12 }, // Charlie owes 12
     ],
-    date: "2025-06-13T12:00:00Z",
+    date: "2025-01-13T12:00:00Z",
     history: [
       {
         actor: users[0], // You
         action: "created this expense",
-        timestamp: "2025-06-13T12:00:00Z",
+        timestamp: "2025-01-13T12:00:00Z",
+      },
+    ],
+  },
+  {
+    id: "exp-6",
+    description: "Movie Tickets",
+    amount: 30,
+    paidBy: users[2], // Bob paid
+    participants: [
+      { user: users[0], share: 15 }, // You owe 15
+      { user: users[2], share: 15 }, // Bob paid 15 for himself
+    ],
+    date: "2025-01-14T20:00:00Z",
+    history: [
+      {
+        actor: users[2], // Bob
+        action: "created this expense",
+        timestamp: "2025-01-14T20:00:00Z",
+      },
+    ],
+  },
+  
+  // Settlement transactions
+  {
+    id: "settlement-1",
+    isSettlement: true,
+    description: "Payment to Alice",
+    amount: 50,
+    paidBy: users[0], // You paid Alice
+    participants: [{ user: users[1], share: 50 }], // Alice received
+    date: "2025-01-15T16:00:00Z",
+    history: [
+      {
+        actor: users[0],
+        action: "paid Alice $50.00",
+        timestamp: "2025-01-15T16:00:00Z",
       },
     ],
   },

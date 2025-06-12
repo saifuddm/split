@@ -1,4 +1,4 @@
-import type { User, Expense } from './types';
+import type { User, Expense, Group } from './types';
 
 export interface SimplifiedDebt {
   debtor: User;
@@ -81,6 +81,83 @@ export const calculateSimplifiedDebts = (members: User[], expenses: Expense[]): 
   }
   
   return simplifiedDebts;
+};
+
+export const calculateNetBalanceBetweenTwoUsers = (
+  currentUser: User,
+  otherUser: User,
+  allGroups: Group[],
+  allExpenses: Expense[]
+): number => {
+  let netBalance = 0;
+  
+  // Step A: Calculate Group Debts
+  // Find all mutual groups between the currentUser and otherUser
+  const mutualGroups = allGroups.filter(group => 
+    group.members.some(m => m.id === currentUser.id) && 
+    group.members.some(m => m.id === otherUser.id)
+  );
+  
+  mutualGroups.forEach(group => {
+    // Get expenses for this specific group
+    const groupExpenses = allExpenses.filter(exp => exp.groupId === group.id);
+    
+    // Calculate simplified debts within this group
+    const simplifiedGroupDebts = calculateSimplifiedDebts(group.members, groupExpenses);
+    
+    // Search for a debt between the two users
+    const debt = simplifiedGroupDebts.find(d => 
+      (d.debtor.id === currentUser.id && d.creditor.id === otherUser.id) ||
+      (d.debtor.id === otherUser.id && d.creditor.id === currentUser.id)
+    );
+    
+    if (debt) {
+      if (debt.debtor.id === currentUser.id) {
+        // Current user owes the other user
+        netBalance -= debt.amount;
+      } else {
+        // Other user owes the current user
+        netBalance += debt.amount;
+      }
+    }
+  });
+  
+  // Step B: Calculate Individual Debts
+  // Filter to get only non-group transactions involving only these two users
+  const individualTransactions = allExpenses.filter(exp => 
+    !exp.groupId && 
+    exp.participants.length === 2 &&
+    exp.participants.some(p => p.user.id === currentUser.id) &&
+    exp.participants.some(p => p.user.id === otherUser.id)
+  );
+  
+  individualTransactions.forEach(expense => {
+    if (expense.isSettlement) {
+      // Handle settlement transactions
+      if (expense.paidBy.id === currentUser.id) {
+        // Current user paid the other user
+        netBalance += expense.amount;
+      } else if (expense.paidBy.id === otherUser.id) {
+        // Other user paid the current user
+        netBalance -= expense.amount;
+      }
+    } else {
+      // Handle regular expenses
+      const currentUserParticipant = expense.participants.find(p => p.user.id === currentUser.id);
+      
+      if (currentUserParticipant) {
+        if (expense.paidBy.id === currentUser.id) {
+          // Current user paid, so they are owed the difference
+          netBalance += expense.amount - currentUserParticipant.share;
+        } else {
+          // Current user didn't pay, so they owe their share
+          netBalance -= currentUserParticipant.share;
+        }
+      }
+    }
+  });
+  
+  return netBalance;
 };
 
 export const generateAuditDetails = (
