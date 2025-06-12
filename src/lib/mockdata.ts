@@ -156,14 +156,14 @@ export const expenses: Expense[] = [
     id: "settlement-1",
     isSettlement: true,
     description: "Payment to Alice",
-    amount: 50,
+    amount: 6,
     paidBy: users[0], // You paid Alice
-    participants: [{ user: users[1], share: 50 }], // Alice received
+    participants: [{ user: users[1], share: 6 }], // Alice received
     date: "2025-01-15T16:00:00Z",
     history: [
       {
         actor: users[0],
-        action: "paid Alice $50.00",
+        action: "paid Alice $6.00",
         timestamp: "2025-01-15T16:00:00Z",
       },
     ],
