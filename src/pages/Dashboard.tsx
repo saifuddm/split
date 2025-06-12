@@ -5,6 +5,7 @@ import { calculateSimplifiedDebts } from '../lib/utils';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
+import { ExpenseCard } from '../components/ExpenseCard';
 
 export const Dashboard: React.FC = () => {
   const { currentUser, users, groups, expenses, actions } = useAppStore();
@@ -103,6 +104,43 @@ export const Dashboard: React.FC = () => {
     actions.navigateTo('add-expense');
   };
   
+  // Fixed settlement logic - calculate net balance for specific user pair
+  const isExpenseSettled = (expense: any) => {
+    // Find the other participant in the expense who is not the current user
+    const otherParticipant = expense.participants.find((p: any) => p.user.id !== currentUser.id);
+    if (!otherParticipant) return false;
+    
+    const otherUserId = otherParticipant.user.id;
+    
+    // Get all individual transactions between current user and this other user
+    const relevantTransactions = expenses.filter(exp => 
+      !exp.groupId && // Only individual expenses
+      exp.participants.some((p: any) => p.user.id === currentUser.id) &&
+      exp.participants.some((p: any) => p.user.id === otherUserId)
+    );
+    
+    // Calculate net balance
+    let netBalance = 0;
+    
+    relevantTransactions.forEach(transaction => {
+      if (transaction.isSettlement) {
+        // If current user paid in a settlement, add to balance
+        if (transaction.paidBy.id === currentUser.id) {
+          netBalance += transaction.amount;
+        }
+      } else {
+        // For regular expenses, subtract current user's share from balance
+        const currentUserShare = transaction.participants.find((p: any) => p.user.id === currentUser.id);
+        if (currentUserShare) {
+          netBalance -= currentUserShare.share;
+        }
+      }
+    });
+    
+    // Debt is settled if net balance is >= 0 (with small tolerance for floating point)
+    return netBalance >= -0.01;
+  };
+  
   const overallBalances = calculateOverallBalances();
   
   // Separate users who owe you vs users you owe
@@ -119,20 +157,6 @@ export const Dashboard: React.FC = () => {
 
   // Get non-group expenses for display
   const nonGroupExpenses = expenses.filter(exp => !exp.groupId && !exp.isSettlement);
-
-  // Check if an individual expense is settled
-  const isExpenseSettled = (expense: any) => {
-    // Find if there's a corresponding settlement that covers this expense
-    const settlements = expenses.filter(exp => 
-      exp.isSettlement && 
-      !exp.groupId && 
-      ((exp.paidBy.id === currentUser.id && expense.paidBy.id !== currentUser.id) ||
-       (exp.participants[0].user.id === currentUser.id && expense.paidBy.id === currentUser.id))
-    );
-    
-    // This is a simplified check - in a real app you'd want more sophisticated settlement tracking
-    return settlements.length > 0;
-  };
 
   // Filter individual expenses based on showSettled state
   const filteredNonGroupExpenses = showSettled 
@@ -279,43 +303,9 @@ export const Dashboard: React.FC = () => {
                   </p>
                 </Card>
               ) : (
-                filteredNonGroupExpenses.map(expense => {
-                  const otherParticipant = expense.participants.find(p => p.user.id !== currentUser.id);
-                  const currentUserParticipant = expense.participants.find(p => p.user.id === currentUser.id);
-                  
-                  return (
-                    <Card
-                      key={expense.id}
-                      onClick={() => actions.startEditingExpense(expense.id)}
-                      className="cursor-pointer hover:bg-surface0 transition-colors"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <h3 className="font-medium mb-1">{expense.description}</h3>
-                          <div className="flex items-center gap-2 text-sm text-subtext1">
-                            <Avatar user={expense.paidBy} size="sm" />
-                            <span>
-                              {expense.paidBy.id === currentUser.id ? 'You' : expense.paidBy.name} paid
-                            </span>
-                          </div>
-                          {otherParticipant && (
-                            <p className="text-sm text-subtext1 mt-1">
-                              Expense with {otherParticipant.user.name}
-                            </p>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-lg">${expense.amount.toFixed(2)}</p>
-                          {currentUserParticipant && (
-                            <p className="text-xs text-subtext1">
-                              Your share: ${currentUserParticipant.share.toFixed(2)}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                })
+                filteredNonGroupExpenses.map(expense => (
+                  <ExpenseCard key={expense.id} expense={expense} />
+                ))
               )}
             </div>
           </div>
