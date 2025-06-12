@@ -6,7 +6,7 @@ import { Button } from '../components/Button';
 import { ExpenseCard } from '../components/ExpenseCard';
 
 export const IndividualExpensesPage: React.FC = () => {
-  const { currentUser, expenses, actions } = useAppStore();
+  const { expenses, actions } = useAppStore();
   
   // Get all non-group transactions, sorted by date (newest first)
   const individualTransactions = expenses

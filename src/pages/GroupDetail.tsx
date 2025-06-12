@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { ArrowLeft, Plus, Handshake } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
 import { calculateSimplifiedDebts } from '../lib/utils';
