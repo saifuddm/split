@@ -34,6 +34,7 @@ export const AddExpense: React.FC = () => {
   const isEditMode = editingExpenseId !== null;
   const editingExpense = isEditMode ? expenses.find(e => e.id === editingExpenseId) : null;
   const preselectedUser = preselectedUserIdForExpense ? users.find(u => u.id === preselectedUserIdForExpense) : null;
+
   
   // Filter groups based on preselected user
   const availableGroups = useMemo(() => {
