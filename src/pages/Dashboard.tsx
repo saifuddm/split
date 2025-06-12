@@ -1,5 +1,5 @@
-import React from 'react';
-import { Plus, Users, Handshake, Settings } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, Users, Handshake, Settings, Bell } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
 import { calculateSimplifiedDebts } from '../lib/utils';
 import { Card } from '../components/Card';
@@ -8,6 +8,7 @@ import { Avatar } from '../components/Avatar';
 
 export const Dashboard: React.FC = () => {
   const { currentUser, users, groups, expenses, actions } = useAppStore();
+  const [showSettled, setShowSettled] = useState(false);
   
   // Calculate overall balances by first settling within each group, then aggregating
   const calculateOverallBalances = () => {
@@ -118,6 +119,25 @@ export const Dashboard: React.FC = () => {
 
   // Get non-group expenses for display
   const nonGroupExpenses = expenses.filter(exp => !exp.groupId && !exp.isSettlement);
+
+  // Check if an individual expense is settled
+  const isExpenseSettled = (expense: any) => {
+    // Find if there's a corresponding settlement that covers this expense
+    const settlements = expenses.filter(exp => 
+      exp.isSettlement && 
+      !exp.groupId && 
+      ((exp.paidBy.id === currentUser.id && expense.paidBy.id !== currentUser.id) ||
+       (exp.participants[0].user.id === currentUser.id && expense.paidBy.id === currentUser.id))
+    );
+    
+    // This is a simplified check - in a real app you'd want more sophisticated settlement tracking
+    return settlements.length > 0;
+  };
+
+  // Filter individual expenses based on showSettled state
+  const filteredNonGroupExpenses = showSettled 
+    ? nonGroupExpenses 
+    : nonGroupExpenses.filter(expense => !isExpenseSettled(expense));
   
   return (
     <div className="min-h-screen bg-base text-text p-4">
@@ -126,6 +146,14 @@ export const Dashboard: React.FC = () => {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <div className="flex items-center gap-2">
+            <Button
+              onClick={() => actions.navigateTo('activity')}
+              variant="secondary"
+              size="sm"
+              className="p-2"
+            >
+              <Bell size={16} />
+            </Button>
             <Button
               onClick={() => actions.navigateTo('settings')}
               variant="secondary"
@@ -232,45 +260,63 @@ export const Dashboard: React.FC = () => {
         {/* Individual Expenses Section */}
         {nonGroupExpenses.length > 0 && (
           <div className="mb-6">
-            <h2 className="text-lg font-semibold mb-4">Individual Expenses</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Individual Expenses</h2>
+              <Button
+                onClick={() => setShowSettled(!showSettled)}
+                variant="secondary"
+                size="sm"
+                className="text-xs"
+              >
+                {showSettled ? 'Hide Settled' : 'Show Settled'}
+              </Button>
+            </div>
             <div className="space-y-3">
-              {nonGroupExpenses.map(expense => {
-                const otherParticipant = expense.participants.find(p => p.user.id !== currentUser.id);
-                const currentUserParticipant = expense.participants.find(p => p.user.id === currentUser.id);
-                
-                return (
-                  <Card
-                    key={expense.id}
-                    onClick={() => actions.startEditingExpense(expense.id)}
-                    className="cursor-pointer hover:bg-surface0 transition-colors"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h3 className="font-medium mb-1">{expense.description}</h3>
-                        <div className="flex items-center gap-2 text-sm text-subtext1">
-                          <Avatar user={expense.paidBy} size="sm" />
-                          <span>
-                            {expense.paidBy.id === currentUser.id ? 'You' : expense.paidBy.name} paid
-                          </span>
+              {filteredNonGroupExpenses.length === 0 ? (
+                <Card>
+                  <p className="text-center text-subtext1">
+                    {showSettled ? 'No individual expenses found.' : 'All individual expenses are settled up!'}
+                  </p>
+                </Card>
+              ) : (
+                filteredNonGroupExpenses.map(expense => {
+                  const otherParticipant = expense.participants.find(p => p.user.id !== currentUser.id);
+                  const currentUserParticipant = expense.participants.find(p => p.user.id === currentUser.id);
+                  
+                  return (
+                    <Card
+                      key={expense.id}
+                      onClick={() => actions.startEditingExpense(expense.id)}
+                      className="cursor-pointer hover:bg-surface0 transition-colors"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h3 className="font-medium mb-1">{expense.description}</h3>
+                          <div className="flex items-center gap-2 text-sm text-subtext1">
+                            <Avatar user={expense.paidBy} size="sm" />
+                            <span>
+                              {expense.paidBy.id === currentUser.id ? 'You' : expense.paidBy.name} paid
+                            </span>
+                          </div>
+                          {otherParticipant && (
+                            <p className="text-sm text-subtext1 mt-1">
+                              Expense with {otherParticipant.user.name}
+                            </p>
+                          )}
                         </div>
-                        {otherParticipant && (
-                          <p className="text-sm text-subtext1 mt-1">
-                            Expense with {otherParticipant.user.name}
-                          </p>
-                        )}
+                        <div className="text-right">
+                          <p className="font-bold text-lg">${expense.amount.toFixed(2)}</p>
+                          {currentUserParticipant && (
+                            <p className="text-xs text-subtext1">
+                              Your share: ${currentUserParticipant.share.toFixed(2)}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-lg">${expense.amount.toFixed(2)}</p>
-                        {currentUserParticipant && (
-                          <p className="text-xs text-subtext1">
-                            Your share: ${currentUserParticipant.share.toFixed(2)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
+                    </Card>
+                  );
+                })
+              )}
             </div>
           </div>
         )}

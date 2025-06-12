@@ -8,7 +8,7 @@ import {
 import { generateAuditDetails } from "../lib/utils";
 import type { Group, Expense, User, AuditEntry } from "../lib/types";
 
-type Page = "dashboard" | "group-details" | "add-expense" | "create-group" | "settle-up" | "settings";
+type Page = "dashboard" | "group-details" | "add-expense" | "create-group" | "settle-up" | "settings" | "activity";
 
 interface AppState {
   currentPage: Page;
@@ -120,25 +120,34 @@ export const useAppStore = create<AppState>((set, get) => ({
     },
     recordSettlement: (payee, settlements) => {
       const settlementExpenses: Expense[] = settlements.map(
-        ({ groupId, amount }) => ({
-          id: `settlement-${Date.now()}-${Math.random()}`,
-          isSettlement: true,
-          groupId,
-          description: `Payment to ${payee.name}`,
-          amount,
-          paidBy: get().currentUser, // You are the one paying
-          // The payee is the sole participant, "owing" the full amount back to you.
-          // This creates a negative debt for them, effectively cancelling your positive debt.
-          participants: [{ user: payee, share: amount }],
-          date: new Date().toISOString(),
-          history: [
-            {
-              actor: get().currentUser,
-              action: `paid ${payee.name} $${amount.toFixed(2)}`,
-              timestamp: new Date().toISOString(),
-            },
-          ],
-        }),
+        ({ groupId, amount }) => {
+          const baseSettlement = {
+            id: `settlement-${Date.now()}-${Math.random()}`,
+            isSettlement: true,
+            description: `Payment to ${payee.name}`,
+            amount,
+            paidBy: get().currentUser, // You are the one paying
+            // The payee is the sole participant, "owing" the full amount back to you.
+            // This creates a negative debt for them, effectively cancelling your positive debt.
+            participants: [{ user: payee, share: amount }],
+            date: new Date().toISOString(),
+            history: [
+              {
+                actor: get().currentUser,
+                action: `paid ${payee.name} $${amount.toFixed(2)}`,
+                timestamp: new Date().toISOString(),
+              },
+            ],
+          };
+
+          // Only include groupId if it's not empty (for group settlements)
+          if (groupId) {
+            return { ...baseSettlement, groupId };
+          }
+          
+          // For individual settlements, don't include groupId
+          return baseSettlement;
+        }
       );
 
       set(state => ({

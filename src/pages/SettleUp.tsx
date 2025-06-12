@@ -11,6 +11,8 @@ export const SettleUp: React.FC = () => {
   const { currentUser, users, groups, expenses, actions } = useAppStore();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedSettlements, setSelectedSettlements] = useState<{ [groupId: string]: number }>({});
+  const [individualDebtAmount, setIndividualDebtAmount] = useState(0);
+  const [settleIndividualDebt, setSettleIndividualDebt] = useState(false);
   const [step, setStep] = useState<'select-user' | 'specify-amounts' | 'confirmation'>('select-user');
 
   // Calculate overall balances to find users you owe
@@ -42,6 +44,41 @@ export const SettleUp: React.FC = () => {
           overallBalances[debt.debtor.id] += debt.amount;
         }
       });
+    });
+    
+    // Process non-group expenses
+    const nonGroupExpenses = expenses.filter(exp => !exp.groupId);
+    nonGroupExpenses.forEach(expense => {
+      if (expense.isSettlement) {
+        // Special logic for settlement transactions
+        if (expense.paidBy.id === currentUser.id) {
+          // Current user paid someone
+          overallBalances[expense.participants[0].user.id] += expense.amount;
+        } else if (expense.participants[0].user.id === currentUser.id) {
+          // Someone paid current user
+          overallBalances[expense.paidBy.id] -= expense.amount;
+        }
+      } else {
+        // Regular non-group expense
+        expense.participants.forEach(participant => {
+          if (participant.user.id === currentUser.id) {
+            // Current user's involvement
+            if (expense.paidBy.id === currentUser.id) {
+              // Current user paid, so they are owed the difference
+              const otherParticipant = expense.participants.find(p => p.user.id !== currentUser.id);
+              if (otherParticipant) {
+                overallBalances[otherParticipant.user.id] += expense.amount - participant.share;
+              }
+            } else {
+              // Current user didn't pay, so they owe their share to the payer
+              overallBalances[expense.paidBy.id] -= participant.share;
+            }
+          } else if (expense.paidBy.id === currentUser.id) {
+            // Current user paid for someone else
+            overallBalances[participant.user.id] -= participant.share;
+          }
+        });
+      }
     });
     
     return overallBalances;
@@ -84,11 +121,48 @@ export const SettleUp: React.FC = () => {
     return groupDebts;
   };
 
+  // Calculate individual debt for the selected user
+  const getIndividualDebtForUser = (user: User) => {
+    let individualBalance = 0;
+    
+    const nonGroupExpenses = expenses.filter(exp => !exp.groupId);
+    nonGroupExpenses.forEach(expense => {
+      if (expense.isSettlement) {
+        // Handle settlement transactions
+        if (expense.paidBy.id === currentUser.id && expense.participants[0].user.id === user.id) {
+          // Current user paid the selected user
+          individualBalance += expense.amount;
+        } else if (expense.paidBy.id === user.id && expense.participants[0].user.id === currentUser.id) {
+          // Selected user paid current user
+          individualBalance -= expense.amount;
+        }
+      } else {
+        // Regular non-group expense
+        const currentUserParticipant = expense.participants.find(p => p.user.id === currentUser.id);
+        const otherUserParticipant = expense.participants.find(p => p.user.id === user.id);
+        
+        if (currentUserParticipant && otherUserParticipant) {
+          // Both users are involved
+          if (expense.paidBy.id === currentUser.id) {
+            // Current user paid, they are owed by the other user
+            individualBalance += otherUserParticipant.share;
+          } else if (expense.paidBy.id === user.id) {
+            // Other user paid, current user owes them
+            individualBalance -= currentUserParticipant.share;
+          }
+        }
+      }
+    });
+    
+    return Math.abs(individualBalance); // Return absolute value since we only show debts
+  };
+
   const selectedUserGroupDebts = selectedUser ? getGroupDebtsForUser(selectedUser) : [];
 
   const handleUserSelect = (user: User) => {
     setSelectedUser(user);
     const groupDebts = getGroupDebtsForUser(user);
+    const individualDebt = getIndividualDebtForUser(user);
     
     // Initialize selected settlements with all group debts
     const initialSettlements: { [groupId: string]: number } = {};
@@ -96,6 +170,10 @@ export const SettleUp: React.FC = () => {
       initialSettlements[debt.groupId] = debt.amount;
     });
     setSelectedSettlements(initialSettlements);
+    
+    // Set individual debt
+    setIndividualDebtAmount(individualDebt);
+    setSettleIndividualDebt(individualDebt > 0);
     
     setStep('specify-amounts');
   };
@@ -118,16 +196,26 @@ export const SettleUp: React.FC = () => {
     });
   };
 
-  const totalSettlementAmount = Object.values(selectedSettlements).reduce((sum, amount) => sum + amount, 0);
+  const totalGroupSettlement = Object.values(selectedSettlements).reduce((sum, amount) => sum + amount, 0);
+  const totalIndividualSettlement = settleIndividualDebt ? individualDebtAmount : 0;
+  const totalSettlementAmount = totalGroupSettlement + totalIndividualSettlement;
   const activeSettlements = Object.entries(selectedSettlements).filter(([_, amount]) => amount > 0);
 
   const handleConfirmSettlement = () => {
-    if (!selectedUser || activeSettlements.length === 0) return;
+    if (!selectedUser || totalSettlementAmount <= 0) return;
     
     const settlements = activeSettlements.map(([groupId, amount]) => ({
       groupId,
       amount
     }));
+    
+    // Add individual settlement if selected
+    if (settleIndividualDebt && individualDebtAmount > 0) {
+      settlements.push({
+        groupId: '', // Empty groupId for individual settlement
+        amount: individualDebtAmount
+      });
+    }
     
     actions.recordSettlement(selectedUser, settlements);
     actions.navigateTo('dashboard');
@@ -138,6 +226,8 @@ export const SettleUp: React.FC = () => {
       setStep('select-user');
       setSelectedUser(null);
       setSelectedSettlements({});
+      setIndividualDebtAmount(0);
+      setSettleIndividualDebt(false);
     } else if (step === 'confirmation') {
       setStep('specify-amounts');
     } else {
@@ -221,53 +311,84 @@ export const SettleUp: React.FC = () => {
             <div className="text-center mb-6">
               <Avatar user={selectedUser} size="lg" className="mx-auto mb-3" />
               <h2 className="text-lg font-semibold mb-2">Paying {selectedUser.name}</h2>
-              <p className="text-sm text-subtext1">Choose which groups to settle</p>
+              <p className="text-sm text-subtext1">Choose which debts to settle</p>
             </div>
             
-            <div className="space-y-3">
-              {selectedUserGroupDebts.map(debt => {
-                const isSelected = selectedSettlements[debt.groupId] > 0;
-                const currentAmount = selectedSettlements[debt.groupId] || 0;
-                
-                return (
-                  <Card key={debt.groupId} className="p-4">
-                    <div className="flex items-center gap-3 mb-3">
+            <div className="space-y-4">
+              {/* Group Debts Section */}
+              {selectedUserGroupDebts.length > 0 && (
+                <div>
+                  <h3 className="font-medium mb-3">Group Debts</h3>
+                  <div className="space-y-3">
+                    {selectedUserGroupDebts.map(debt => {
+                      const isSelected = selectedSettlements[debt.groupId] > 0;
+                      const currentAmount = selectedSettlements[debt.groupId] || 0;
+                      
+                      return (
+                        <Card key={debt.groupId} className="p-4">
+                          <div className="flex items-center gap-3 mb-3">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleGroupToggle(debt.groupId, debt.amount)}
+                              className="text-blue focus:ring-blue"
+                            />
+                            <div className="flex-1">
+                              <h4 className="font-medium">{debt.groupName}</h4>
+                              <p className="text-sm text-subtext1">You owe ${debt.amount.toFixed(2)}</p>
+                            </div>
+                          </div>
+                          
+                          {isSelected && (
+                            <div className="ml-6">
+                              <label className="block text-sm font-medium mb-2">
+                                Amount to pay
+                              </label>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-subtext1">
+                                  $
+                                </span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  max={debt.amount}
+                                  value={currentAmount}
+                                  onChange={(e) => handleAmountChange(debt.groupId, e.target.value)}
+                                  className="w-full pl-8 pr-3 py-2 bg-mantle border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Individual Debts Section */}
+              {individualDebtAmount > 0 && (
+                <div>
+                  <h3 className="font-medium mb-3">Individual Debts</h3>
+                  <Card className="p-4">
+                    <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
-                        checked={isSelected}
-                        onChange={() => handleGroupToggle(debt.groupId, debt.amount)}
+                        checked={settleIndividualDebt}
+                        onChange={(e) => setSettleIndividualDebt(e.target.checked)}
                         className="text-blue focus:ring-blue"
                       />
                       <div className="flex-1">
-                        <h3 className="font-medium">{debt.groupName}</h3>
-                        <p className="text-sm text-subtext1">You owe ${debt.amount.toFixed(2)}</p>
+                        <h4 className="font-medium">Direct expenses</h4>
+                        <p className="text-sm text-subtext1">
+                          You owe ${individualDebtAmount.toFixed(2)} from individual expenses
+                        </p>
                       </div>
                     </div>
-                    
-                    {isSelected && (
-                      <div className="ml-6">
-                        <label className="block text-sm font-medium mb-2">
-                          Amount to pay
-                        </label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-subtext1">
-                            $
-                          </span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max={debt.amount}
-                            value={currentAmount}
-                            onChange={(e) => handleAmountChange(debt.groupId, e.target.value)}
-                            className="w-full pl-8 pr-3 py-2 bg-mantle border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
-                          />
-                        </div>
-                      </div>
-                    )}
                   </Card>
-                );
-              })}
+                </div>
+              )}
             </div>
             
             {totalSettlementAmount > 0 && (
@@ -278,6 +399,18 @@ export const SettleUp: React.FC = () => {
                     ${totalSettlementAmount.toFixed(2)}
                   </span>
                 </div>
+                {totalGroupSettlement > 0 && totalIndividualSettlement > 0 && (
+                  <div className="mt-2 text-sm text-subtext1">
+                    <div className="flex justify-between">
+                      <span>Group debts:</span>
+                      <span>${totalGroupSettlement.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Individual debts:</span>
+                      <span>${totalIndividualSettlement.toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             
@@ -329,6 +462,12 @@ export const SettleUp: React.FC = () => {
                     </div>
                   );
                 })}
+                {settleIndividualDebt && individualDebtAmount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-subtext1">Individual expenses</span>
+                    <span className="font-medium">${individualDebtAmount.toFixed(2)}</span>
+                  </div>
+                )}
               </div>
             </Card>
             

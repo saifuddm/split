@@ -28,6 +28,7 @@ export const AddExpense: React.FC = () => {
   const [exactAmounts, setExactAmounts] = useState<{ [userId: string]: string }>({});
   const [percentages, setPercentages] = useState<{ [userId: string]: string }>({});
   const [isOwedFullAmount, setIsOwedFullAmount] = useState(false);
+  const [expenseType, setExpenseType] = useState<'group' | 'individual'>('group');
   
   const selectedGroup = groups.find(g => g.id === selectedGroupId);
   const isEditMode = editingExpenseId !== null;
@@ -46,7 +47,7 @@ export const AddExpense: React.FC = () => {
   }, [groups, preselectedUser, currentUser.id]);
 
   // Check if we're in non-group mode
-  const isNonGroupMode = preselectedUser && availableGroups.length === 0;
+  const isNonGroupMode = (preselectedUser && availableGroups.length === 0) || expenseType === 'individual';
   
   // Memoized participants who will actually split the cost
   const participantsToSplit = useMemo(() => {
@@ -62,11 +63,13 @@ export const AddExpense: React.FC = () => {
       // Set the preselected user as the payer
       setPaidBy(preselectedUser);
       
-      // If there are available groups, select the first one
+      // If there are available groups, default to group mode and select the first one
       if (availableGroups.length > 0) {
+        setExpenseType('group');
         setSelectedGroupId(availableGroups[0].id);
       } else {
         // Non-group mode: set up participants for direct expense
+        setExpenseType('individual');
         setSelectedParticipants([currentUser, preselectedUser]);
         setSelectedGroupId(''); // Clear group selection
       }
@@ -81,6 +84,9 @@ export const AddExpense: React.FC = () => {
       setSelectedGroupId(editingExpense.groupId || '');
       setPaidBy(editingExpense.paidBy);
       setSelectedParticipants(editingExpense.participants.map(p => p.user));
+      
+      // Set expense type based on whether it has a groupId
+      setExpenseType(editingExpense.groupId ? 'group' : 'individual');
       
       // Check if it's an advanced split (not equal shares)
       const totalAmount = editingExpense.amount;
@@ -244,8 +250,8 @@ export const AddExpense: React.FC = () => {
       date: isEditMode && editingExpense ? editingExpense.date : new Date().toISOString(),
     };
 
-    // Only include groupId if we have a selected group
-    if (selectedGroupId) {
+    // Only include groupId if we have a selected group and we're in group mode
+    if (selectedGroupId && expenseType === 'group') {
       expenseData.groupId = selectedGroupId;
     }
     
@@ -258,7 +264,7 @@ export const AddExpense: React.FC = () => {
     // Clear preselected user and navigate
     actions.setPreselectedUserForExpense(null);
     
-    if (selectedGroupId) {
+    if (selectedGroupId && expenseType === 'group') {
       actions.navigateTo('group-details', selectedGroupId);
     } else {
       actions.navigateTo('dashboard');
@@ -286,7 +292,7 @@ export const AddExpense: React.FC = () => {
                      parseFloat(amount) > 0 && 
                      selectedParticipants.length > 0 &&
                      validation.isValid &&
-                     (selectedGroupId || isNonGroupMode); // Allow saving if we have a group OR we're in non-group mode
+                     (selectedGroupId || isNonGroupMode || (isEditMode && !editingExpense?.groupId)); // Allow saving if we have a group OR we're in non-group mode OR editing a non-group expense
   
   return (
     <div className="min-h-screen bg-base text-text">
@@ -323,6 +329,44 @@ export const AddExpense: React.FC = () => {
               <div className="flex items-center gap-3">
                 <Avatar user={preselectedUser} size="sm" />
                 <span className="font-medium">{preselectedUser.name}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Expense Type Toggle - Only show if preselected user has shared groups */}
+          {preselectedUser && availableGroups.length > 0 && !isEditMode && (
+            <div className="bg-surface0 p-4 rounded-lg">
+              <h3 className="font-medium mb-3">Expense Type</h3>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExpenseType('group');
+                    setSelectedGroupId(availableGroups[0].id);
+                  }}
+                  className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
+                    expenseType === 'group'
+                      ? 'bg-blue text-base border-blue'
+                      : 'bg-mantle text-text border-surface0 hover:bg-surface0'
+                  }`}
+                >
+                  Group Expense
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExpenseType('individual');
+                    setSelectedGroupId('');
+                    setSelectedParticipants([currentUser, preselectedUser]);
+                  }}
+                  className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
+                    expenseType === 'individual'
+                      ? 'bg-blue text-base border-blue'
+                      : 'bg-mantle text-text border-surface0 hover:bg-surface0'
+                  }`}
+                >
+                  Direct Expense
+                </button>
               </div>
             </div>
           )}
@@ -391,7 +435,7 @@ export const AddExpense: React.FC = () => {
             <Card className="p-4">
               <h3 className="font-medium mb-2">Direct Expense</h3>
               <p className="text-sm text-subtext1">
-                This will be logged as a direct expense with {preselectedUser.name}.
+                This will be logged as a direct expense with {preselectedUser?.name || 'the selected person'}.
               </p>
             </Card>
           )}

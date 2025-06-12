@@ -7,6 +7,7 @@ import { AddExpense } from "./pages/AddExpense";
 import { CreateGroup } from "./pages/CreateGroup";
 import { SettleUp } from "./pages/SettleUp";
 import { Settings } from "./pages/Settings";
+import { ActivityFeed } from "./pages/ActivityFeed";
 import { LandingPage } from "./pages/LandingPage";
 
 function App() {
@@ -37,6 +38,8 @@ function App() {
         return <SettleUp />;
       case 'settings':
         return <Settings />;
+      case 'activity':
+        return <ActivityFeed />;
       default:
         return <Dashboard />;
     }
