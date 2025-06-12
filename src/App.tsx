@@ -8,6 +8,7 @@ import { CreateGroup } from "./pages/CreateGroup";
 import { SettleUp } from "./pages/SettleUp";
 import { Settings } from "./pages/Settings";
 import { ActivityFeed } from "./pages/ActivityFeed";
+import { IndividualExpensesPage } from "./pages/IndividualExpensesPage";
 import { LandingPage } from "./pages/LandingPage";
 
 function App() {
@@ -40,6 +41,8 @@ function App() {
         return <Settings />;
       case 'activity':
         return <ActivityFeed />;
+      case 'individual-expenses':
+        return <IndividualExpensesPage />;
       default:
         return <Dashboard />;
     }
