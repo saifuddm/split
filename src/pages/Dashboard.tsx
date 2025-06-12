@@ -241,7 +241,8 @@ export const Dashboard: React.FC = () => {
                         </div>
                       ))}
                     </div>
-                  )}
+                  </div>
+                )}
                 
                 <div className="pt-2 border-t border-surface0">
                   <p className="text-xs text-subtext0 text-center">
