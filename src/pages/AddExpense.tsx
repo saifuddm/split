@@ -54,7 +54,7 @@ export const AddExpense: React.FC = () => {
   const paidByOptions = useMemo(() => {
     if (selectedGroup) {
       return selectedGroup.members;
-    } else if (isNonGroupMode || expenseType === 'individual') {
+    } else if (isNonGroupMode) {
       if (isEditMode && editingExpense) {
         // In edit mode, get all unique users from the expense participants plus the payer
         const expenseUsers = [editingExpense.paidBy, ...editingExpense.participants.map(p => p.user)];
@@ -67,13 +67,13 @@ export const AddExpense: React.FC = () => {
       }
     }
     return [currentUser];
-  }, [selectedGroup, isNonGroupMode, expenseType, isEditMode, editingExpense, preselectedUser, currentUser]);
+  }, [selectedGroup, isNonGroupMode, isEditMode, editingExpense, preselectedUser, currentUser]);
 
   // Memoized options for participant selection
   const availableParticipantsForSelection = useMemo(() => {
     if (selectedGroup) {
       return selectedGroup.members;
-    } else if (isNonGroupMode || expenseType === 'individual') {
+    } else if (isNonGroupMode) {
       if (isEditMode && editingExpense) {
         // In edit mode, get all unique users from the expense participants plus the payer
         const expenseUsers = [editingExpense.paidBy, ...editingExpense.participants.map(p => p.user)];
@@ -86,7 +86,7 @@ export const AddExpense: React.FC = () => {
       }
     }
     return [currentUser];
-  }, [selectedGroup, isNonGroupMode, expenseType, isEditMode, editingExpense, preselectedUser, currentUser]);
+  }, [selectedGroup, isNonGroupMode, isEditMode, editingExpense, preselectedUser, currentUser]);
   
   // Memoized participants who will actually split the cost
   const participantsToSplit = useMemo(() => {
