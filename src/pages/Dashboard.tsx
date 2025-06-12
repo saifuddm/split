@@ -39,6 +39,38 @@ export const Dashboard: React.FC = () => {
         }
       });
     });
+
+    // Process non-group expenses
+    const nonGroupExpenses = expenses.filter(exp => !exp.groupId);
+    nonGroupExpenses.forEach(expense => {
+      if (expense.isSettlement) {
+        // Special logic for settlement transactions
+        if (expense.paidBy.id === currentUser.id) {
+          // Current user paid someone
+          overallBalances[expense.participants[0].user.id] += expense.amount;
+        } else if (expense.participants[0].user.id === currentUser.id) {
+          // Someone paid current user
+          overallBalances[expense.paidBy.id] -= expense.amount;
+        }
+      } else {
+        // Regular non-group expense
+        expense.participants.forEach(participant => {
+          if (participant.user.id === currentUser.id) {
+            // Current user's involvement
+            if (expense.paidBy.id === currentUser.id) {
+              // Current user paid, so they are owed the difference
+              overallBalances[participant.user.id] += expense.amount - participant.share;
+            } else {
+              // Current user didn't pay, so they owe their share to the payer
+              overallBalances[expense.paidBy.id] -= participant.share;
+            }
+          } else if (expense.paidBy.id === currentUser.id) {
+            // Current user paid for someone else
+            overallBalances[participant.user.id] -= participant.share;
+          }
+        });
+      }
+    });
     
     return overallBalances;
   };
@@ -83,6 +115,9 @@ export const Dashboard: React.FC = () => {
 
   // Get other users for Quick Add (excluding current user)
   const otherUsers = users.filter(user => user.id !== currentUser.id);
+
+  // Get non-group expenses for display
+  const nonGroupExpenses = expenses.filter(exp => !exp.groupId && !exp.isSettlement);
   
   return (
     <div className="min-h-screen bg-base text-text p-4">
@@ -193,6 +228,52 @@ export const Dashboard: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Individual Expenses Section */}
+        {nonGroupExpenses.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold mb-4">Individual Expenses</h2>
+            <div className="space-y-3">
+              {nonGroupExpenses.map(expense => {
+                const otherParticipant = expense.participants.find(p => p.user.id !== currentUser.id);
+                const currentUserParticipant = expense.participants.find(p => p.user.id === currentUser.id);
+                
+                return (
+                  <Card
+                    key={expense.id}
+                    onClick={() => actions.startEditingExpense(expense.id)}
+                    className="cursor-pointer hover:bg-surface0 transition-colors"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="font-medium mb-1">{expense.description}</h3>
+                        <div className="flex items-center gap-2 text-sm text-subtext1">
+                          <Avatar user={expense.paidBy} size="sm" />
+                          <span>
+                            {expense.paidBy.id === currentUser.id ? 'You' : expense.paidBy.name} paid
+                          </span>
+                        </div>
+                        {otherParticipant && (
+                          <p className="text-sm text-subtext1 mt-1">
+                            Expense with {otherParticipant.user.name}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-lg">${expense.amount.toFixed(2)}</p>
+                        {currentUserParticipant && (
+                          <p className="text-xs text-subtext1">
+                            Your share: ${currentUserParticipant.share.toFixed(2)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        )}
         
         {/* Groups Section */}
         <div className="mb-24 pb-24">

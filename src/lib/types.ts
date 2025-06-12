@@ -14,7 +14,7 @@ export interface AuditEntry {
 
 export interface Expense {
   id: string;
-  groupId: string;
+  groupId?: string; // Made optional for non-group expenses
   description: string;
   amount: number;
   paidBy: User;
