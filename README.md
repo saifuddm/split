@@ -2,7 +2,7 @@
 
 [![Netlify Status](https://api.netlify.com/api/v1/badges/dac858dd-2089-42eb-879d-eb02f21b90a3/deploy-status?branch=main)](https://app.netlify.com/projects/split-saifuddm/deploys)
 
-A modern, front-end clone of Splitwise built with React and TypeScript. This application allows users to create groups, add shared expenses, and easily track who owes who. It features advanced splitting options and a clear, simplified view of all debts.
+This application allows users to create groups, add shared expenses, and easily track who owes who. It features advanced splitting options and a clear, simplified view of all debts.
 
 ## Core Features
 
@@ -29,8 +29,8 @@ To run this project locally, follow these steps:
 
 1.  **Clone the repository:**
     ```sh
-    git clone <repository-url>
-    cd <repository-folder>
+    git clone git@github.com:saifuddm/split.git
+    cd split
     ```
 2.  **Install dependencies:**
     This project uses `bun` as its package manager.
