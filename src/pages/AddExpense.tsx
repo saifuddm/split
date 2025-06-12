@@ -49,6 +49,44 @@ export const AddExpense: React.FC = () => {
   // Check if we're in non-group mode
   const isNonGroupMode = (preselectedUser && availableGroups.length === 0) || expenseType === 'individual';
   
+  // Memoized options for "Paid by" section
+  const paidByOptions = useMemo(() => {
+    if (selectedGroup) {
+      return selectedGroup.members;
+    } else if (isNonGroupMode || expenseType === 'individual') {
+      if (isEditMode && editingExpense) {
+        // In edit mode, get all unique users from the expense participants plus the payer
+        const expenseUsers = [editingExpense.paidBy, ...editingExpense.participants.map(p => p.user)];
+        const uniqueUsers = expenseUsers.filter((user, index, self) => 
+          self.findIndex(u => u.id === user.id) === index
+        );
+        return uniqueUsers;
+      } else if (preselectedUser) {
+        return [currentUser, preselectedUser];
+      }
+    }
+    return [currentUser];
+  }, [selectedGroup, isNonGroupMode, expenseType, isEditMode, editingExpense, preselectedUser, currentUser]);
+
+  // Memoized options for participant selection
+  const availableParticipantsForSelection = useMemo(() => {
+    if (selectedGroup) {
+      return selectedGroup.members;
+    } else if (isNonGroupMode || expenseType === 'individual') {
+      if (isEditMode && editingExpense) {
+        // In edit mode, get all unique users from the expense participants plus the payer
+        const expenseUsers = [editingExpense.paidBy, ...editingExpense.participants.map(p => p.user)];
+        const uniqueUsers = expenseUsers.filter((user, index, self) => 
+          self.findIndex(u => u.id === user.id) === index
+        );
+        return uniqueUsers;
+      } else if (preselectedUser) {
+        return [currentUser, preselectedUser];
+      }
+    }
+    return [currentUser];
+  }, [selectedGroup, isNonGroupMode, expenseType, isEditMode, editingExpense, preselectedUser, currentUser]);
+  
   // Memoized participants who will actually split the cost
   const participantsToSplit = useMemo(() => {
     if (isOwedFullAmount && paidBy.id === currentUser.id) {
@@ -447,7 +485,7 @@ export const AddExpense: React.FC = () => {
                 Paid by
               </label>
               <div className="space-y-2">
-                {(selectedGroup?.members || [currentUser, preselectedUser!]).map(member => (
+                {paidByOptions.map(member => (
                   <label
                     key={member.id}
                     className="flex items-center gap-3 p-3 bg-mantle border border-surface0 rounded-lg cursor-pointer hover:bg-surface0 transition-colors"
@@ -508,7 +546,7 @@ export const AddExpense: React.FC = () => {
                   Who was involved?
                 </label>
                 <div className="space-y-2">
-                  {(selectedGroup?.members || [currentUser, preselectedUser!]).map(member => (
+                  {availableParticipantsForSelection.map(member => (
                     <label
                       key={member.id}
                       className="flex items-center gap-3 p-3 bg-mantle border border-surface0 rounded-lg cursor-pointer hover:bg-surface0 transition-colors"
@@ -640,11 +678,11 @@ export const AddExpense: React.FC = () => {
             <div className="bg-surface0 p-4 rounded-lg">
               <h3 className="font-medium mb-2">Split</h3>
               <p className="text-sm text-subtext1">
-                Split equally among {selectedGroup?.members.length || 2} {selectedGroup ? 'members' : 'people'}
+                Split equally among {selectedParticipants.length} people
               </p>
-              {amount && parseFloat(amount) > 0 && (
+              {amount && parseFloat(amount) > 0 && selectedParticipants.length > 0 && (
                 <p className="text-sm text-subtext1 mt-1">
-                  ${(parseFloat(amount) / (selectedGroup?.members.length || 2)).toFixed(2)} each
+                  ${(parseFloat(amount) / selectedParticipants.length).toFixed(2)} each
                 </p>
               )}
             </div>
