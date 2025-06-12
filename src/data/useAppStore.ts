@@ -3,6 +3,7 @@ import {
   currentUser as initialCurrentUser,
   groups as initialGroups,
   expenses as initialExpenses,
+  users as initialUsers,
 } from "../lib/mockdata";
 import { generateAuditDetails } from "../lib/utils";
 import type { Group, Expense, User, AuditEntry } from "../lib/types";
@@ -16,6 +17,7 @@ interface AppState {
   hasEnteredApp: boolean;
   preselectedUserIdForExpense: string | null;
   currentUser: User;
+  users: User[];
   groups: Group[];
   expenses: Expense[];
   actions: {
@@ -35,6 +37,7 @@ interface AppState {
     ) => void;
     setPreselectedUserForExpense: (userId: string | null) => void;
     updateCurrentUser: (updatedData: Partial<User>) => void;
+    addUser: (name: string) => void;
   };
 }
 
@@ -45,6 +48,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   hasEnteredApp: false,
   preselectedUserIdForExpense: null,
   currentUser: initialCurrentUser,
+  users: initialUsers,
   groups: initialGroups,
   expenses: initialExpenses,
   actions: {
@@ -147,6 +151,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     updateCurrentUser: (updatedData) => {
       set(state => ({
         currentUser: { ...state.currentUser, ...updatedData }
+      }));
+    },
+    addUser: (name) => {
+      const newUser: User = {
+        id: `user-${Date.now()}`,
+        name: name.trim(),
+        avatarUrl: `https://i.pravatar.cc/48?u=${Date.now()}`,
+      };
+      set(state => ({
+        users: [...state.users, newUser]
       }));
     },
   },

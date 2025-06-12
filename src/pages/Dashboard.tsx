@@ -1,14 +1,13 @@
 import React from 'react';
 import { Plus, Users, Handshake, Settings } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
-import { users } from '../lib/mockdata';
 import { calculateSimplifiedDebts } from '../lib/utils';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
 
 export const Dashboard: React.FC = () => {
-  const { currentUser, groups, expenses, actions } = useAppStore();
+  const { currentUser, users, groups, expenses, actions } = useAppStore();
   
   // Calculate overall balances by first settling within each group, then aggregating
   const calculateOverallBalances = () => {
@@ -81,6 +80,9 @@ export const Dashboard: React.FC = () => {
   const usersYouOwe = users.filter(user => 
     user.id !== currentUser.id && overallBalances[user.id] < 0
   );
+
+  // Get other users for Quick Add (excluding current user)
+  const otherUsers = users.filter(user => user.id !== currentUser.id);
   
   return (
     <div className="min-h-screen bg-base text-text p-4">
@@ -107,6 +109,27 @@ export const Dashboard: React.FC = () => {
             </Button>
           </div>
         </div>
+
+        {/* Quick Add Section */}
+        {otherUsers.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold mb-3">Add Expense with...</h2>
+            <div className="flex overflow-x-auto gap-4 py-2">
+              {otherUsers.map(user => (
+                <div
+                  key={user.id}
+                  onClick={() => handleUserCardClick(user.id)}
+                  className="flex flex-col items-center gap-2 p-2 rounded-lg hover:bg-surface0 transition-colors cursor-pointer flex-shrink-0"
+                >
+                  <Avatar user={user} size="md" />
+                  <span className="text-sm font-medium text-center whitespace-nowrap">
+                    {user.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         
         {/* Personal Balances Section */}
         <div className="mb-6">

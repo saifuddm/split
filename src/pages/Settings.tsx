@@ -1,15 +1,21 @@
 import React, { useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, UserPlus } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
 import { useStore } from '../data/store';
 import { Button } from '../components/Button';
 import { Switch } from '../components/Switch';
 import { Avatar } from '../components/Avatar';
+import { Card } from '../components/Card';
 
 export const Settings: React.FC = () => {
-  const { currentUser, actions } = useAppStore();
+  const { currentUser, users, actions } = useAppStore();
   const { isDark, toggleDarkMode } = useStore();
   const [paymentMessage, setPaymentMessage] = useState(currentUser.paymentMessage || '');
+  const [isInviting, setIsInviting] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+
+  // Get all users except the current user
+  const otherUsers = users.filter(user => user.id !== currentUser.id);
 
   const handleSavePaymentMessage = () => {
     actions.updateCurrentUser({ paymentMessage: paymentMessage.trim() || undefined });
@@ -21,6 +27,19 @@ export const Settings: React.FC = () => {
       handleSavePaymentMessage();
     }
     actions.navigateTo('dashboard');
+  };
+
+  const handleInviteUser = () => {
+    if (newUserName.trim()) {
+      actions.addUser(newUserName.trim());
+      setNewUserName('');
+      setIsInviting(false);
+    }
+  };
+
+  const handleCancelInvite = () => {
+    setNewUserName('');
+    setIsInviting(false);
   };
 
   return (
@@ -86,6 +105,88 @@ export const Settings: React.FC = () => {
               >
                 Save Payment Info
               </Button>
+            </div>
+          </div>
+
+          {/* All Users Section */}
+          <div className="bg-mantle rounded-lg p-4 border border-surface0">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">All Users</h2>
+              <Button
+                onClick={() => setIsInviting(true)}
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <UserPlus size={16} />
+                Invite User
+              </Button>
+            </div>
+
+            {/* Invite User Form */}
+            {isInviting && (
+              <div className="mb-4 p-3 bg-surface0 rounded-lg">
+                <div className="space-y-3">
+                  <label htmlFor="newUserName" className="block text-sm font-medium">
+                    User Name
+                  </label>
+                  <input
+                    id="newUserName"
+                    type="text"
+                    value={newUserName}
+                    onChange={(e) => setNewUserName(e.target.value)}
+                    placeholder="Enter user's name"
+                    className="w-full px-3 py-2 bg-mantle border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleInviteUser();
+                      } else if (e.key === 'Escape') {
+                        handleCancelInvite();
+                      }
+                    }}
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleInviteUser}
+                      size="sm"
+                      disabled={!newUserName.trim()}
+                      className={!newUserName.trim() ? 'opacity-50 cursor-not-allowed' : ''}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      onClick={handleCancelInvite}
+                      variant="secondary"
+                      size="sm"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Users List */}
+            <div className="space-y-2">
+              {otherUsers.length === 0 ? (
+                <p className="text-center text-subtext1 py-4">
+                  No other users yet. Invite someone to get started!
+                </p>
+              ) : (
+                otherUsers.map(user => (
+                  <Card key={user.id} className="p-3">
+                    <div className="flex items-center gap-3">
+                      <Avatar user={user} size="sm" />
+                      <div>
+                        <span className="font-medium">{user.name}</span>
+                        {user.paymentMessage && (
+                          <p className="text-xs text-subtext1">{user.paymentMessage}</p>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                ))
+              )}
             </div>
           </div>
 

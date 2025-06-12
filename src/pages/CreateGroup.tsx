@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
-import { currentUser, users } from '../lib/mockdata';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
 import type { User } from '../lib/types';
 
 export const CreateGroup: React.FC = () => {
-  const { actions } = useAppStore();
+  const { currentUser, users, actions } = useAppStore();
   const [groupName, setGroupName] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<User[]>([]);
   

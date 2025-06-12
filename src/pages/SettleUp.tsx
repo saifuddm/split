@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowLeft, CheckCircle, Handshake } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
-import { currentUser, users } from '../lib/mockdata';
 import { calculateSimplifiedDebts } from '../lib/utils';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -9,7 +8,7 @@ import { Avatar } from '../components/Avatar';
 import type { User } from '../lib/types';
 
 export const SettleUp: React.FC = () => {
-  const { groups, expenses, actions } = useAppStore();
+  const { currentUser, users, groups, expenses, actions } = useAppStore();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedSettlements, setSelectedSettlements] = useState<{ [groupId: string]: number }>({});
   const [step, setStep] = useState<'select-user' | 'specify-amounts' | 'confirmation'>('select-user');

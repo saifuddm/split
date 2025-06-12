@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppStore } from '../data/useAppStore';
-import { users } from '../lib/mockdata';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
 import { Switch } from '../components/Switch';
@@ -12,6 +11,7 @@ export const AddExpense: React.FC = () => {
     editingExpenseId, 
     preselectedUserIdForExpense,
     currentUser,
+    users,
     groups, 
     expenses, 
     actions 
