@@ -8,7 +8,7 @@ import {
 import { generateAuditDetails } from "../lib/utils";
 import type { Group, Expense, User, AuditEntry } from "../lib/types";
 
-type Page = "dashboard" | "group-details" | "add-expense" | "create-group" | "settle-up" | "settings" | "activity";
+type Page = "dashboard" | "group-details" | "add-expense" | "create-group" | "settle-up" | "settings" | "activity" | "individual-expenses";
 
 interface AppState {
   currentPage: Page;

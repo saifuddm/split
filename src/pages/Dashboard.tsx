@@ -1,15 +1,13 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Plus, Users, Handshake, Settings, Bell } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
 import { calculateSimplifiedDebts } from '../lib/utils';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
-import { ExpenseCard } from '../components/ExpenseCard';
 
 export const Dashboard: React.FC = () => {
   const { currentUser, users, groups, expenses, actions } = useAppStore();
-  const [showSettled, setShowSettled] = useState(false);
   
   // Calculate overall balances by first settling within each group, then aggregating
   const calculateOverallBalances = () => {
@@ -77,6 +75,55 @@ export const Dashboard: React.FC = () => {
     return overallBalances;
   };
   
+  // Calculate individual balances for the summary card
+  const calculateIndividualBalances = () => {
+    const individualBalances: { [userId: string]: number } = {};
+    
+    // Initialize balances for all users except current user
+    users.forEach(user => {
+      if (user.id !== currentUser.id) {
+        individualBalances[user.id] = 0;
+      }
+    });
+    
+    // Process only non-group expenses
+    const nonGroupExpenses = expenses.filter(exp => !exp.groupId);
+    nonGroupExpenses.forEach(expense => {
+      if (expense.isSettlement) {
+        // Special logic for settlement transactions
+        if (expense.paidBy.id === currentUser.id) {
+          // Current user paid someone
+          individualBalances[expense.participants[0].user.id] += expense.amount;
+        } else if (expense.participants[0].user.id === currentUser.id) {
+          // Someone paid current user
+          individualBalances[expense.paidBy.id] -= expense.amount;
+        }
+      } else {
+        // Regular non-group expense
+        expense.participants.forEach(participant => {
+          if (participant.user.id === currentUser.id) {
+            // Current user's involvement
+            if (expense.paidBy.id === currentUser.id) {
+              // Current user paid, so they are owed the difference
+              const otherParticipant = expense.participants.find(p => p.user.id !== currentUser.id);
+              if (otherParticipant) {
+                individualBalances[otherParticipant.user.id] += expense.amount - participant.share;
+              }
+            } else {
+              // Current user didn't pay, so they owe their share to the payer
+              individualBalances[expense.paidBy.id] -= participant.share;
+            }
+          } else if (expense.paidBy.id === currentUser.id) {
+            // Current user paid for someone else
+            individualBalances[participant.user.id] -= participant.share;
+          }
+        });
+      }
+    });
+    
+    return individualBalances;
+  };
+  
   // Calculate net balance for a specific group (for group cards)
   const getGroupBalance = (groupId: string) => {
     const group = groups.find(g => g.id === groupId);
@@ -104,44 +151,8 @@ export const Dashboard: React.FC = () => {
     actions.navigateTo('add-expense');
   };
   
-  // Fixed settlement logic - calculate net balance for specific user pair
-  const isExpenseSettled = (expense: any) => {
-    // Find the other participant in the expense who is not the current user
-    const otherParticipant = expense.participants.find((p: any) => p.user.id !== currentUser.id);
-    if (!otherParticipant) return false;
-    
-    const otherUserId = otherParticipant.user.id;
-    
-    // Get all individual transactions between current user and this other user
-    const relevantTransactions = expenses.filter(exp => 
-      !exp.groupId && // Only individual expenses
-      exp.participants.some((p: any) => p.user.id === currentUser.id) &&
-      exp.participants.some((p: any) => p.user.id === otherUserId)
-    );
-    
-    // Calculate net balance
-    let netBalance = 0;
-    
-    relevantTransactions.forEach(transaction => {
-      if (transaction.isSettlement) {
-        // If current user paid in a settlement, add to balance
-        if (transaction.paidBy.id === currentUser.id) {
-          netBalance += transaction.amount;
-        }
-      } else {
-        // For regular expenses, subtract current user's share from balance
-        const currentUserShare = transaction.participants.find((p: any) => p.user.id === currentUser.id);
-        if (currentUserShare) {
-          netBalance -= currentUserShare.share;
-        }
-      }
-    });
-    
-    // Debt is settled if net balance is >= 0 (with small tolerance for floating point)
-    return netBalance >= -0.01;
-  };
-  
   const overallBalances = calculateOverallBalances();
+  const individualBalances = calculateIndividualBalances();
   
   // Separate users who owe you vs users you owe
   const usersWhoOweYou = users.filter(user => 
@@ -155,13 +166,14 @@ export const Dashboard: React.FC = () => {
   // Get other users for Quick Add (excluding current user)
   const otherUsers = users.filter(user => user.id !== currentUser.id);
 
-  // Get non-group expenses for display
-  const nonGroupExpenses = expenses.filter(exp => !exp.groupId && !exp.isSettlement);
-
-  // Filter individual expenses based on showSettled state
-  const filteredNonGroupExpenses = showSettled 
-    ? nonGroupExpenses 
-    : nonGroupExpenses.filter(expense => !isExpenseSettled(expense));
+  // Get users with individual balances for the summary
+  const usersWithIndividualDebtsToYou = users.filter(user => 
+    user.id !== currentUser.id && individualBalances[user.id] > 0
+  );
+  
+  const usersYouOweIndividually = users.filter(user => 
+    user.id !== currentUser.id && individualBalances[user.id] < 0
+  );
   
   return (
     <div className="min-h-screen bg-base text-text p-4">
@@ -281,35 +293,58 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Individual Expenses Section */}
-        {nonGroupExpenses.length > 0 && (
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Individual Expenses</h2>
-              <Button
-                onClick={() => setShowSettled(!showSettled)}
-                variant="secondary"
-                size="sm"
-                className="text-xs"
-              >
-                {showSettled ? 'Hide Settled' : 'Show Settled'}
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {filteredNonGroupExpenses.length === 0 ? (
-                <Card>
-                  <p className="text-center text-subtext1">
-                    {showSettled ? 'No individual expenses found.' : 'All individual expenses are settled up!'}
+        {/* Individual Expenses Summary Section */}
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-3">Individual Expenses</h2>
+          <Card 
+            onClick={() => actions.navigateTo('individual-expenses')}
+            className="cursor-pointer hover:bg-surface0 transition-colors"
+          >
+            {usersWithIndividualDebtsToYou.length === 0 && usersYouOweIndividually.length === 0 ? (
+              <p className="text-center text-subtext1">All individual expenses are settled.</p>
+            ) : (
+              <div className="space-y-3">
+                {usersWithIndividualDebtsToYou.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-2">Who owes you:</h4>
+                    <div className="space-y-1">
+                      {usersWithIndividualDebtsToYou.map(user => (
+                        <div key={user.id} className="flex justify-between text-sm">
+                          <span className="text-subtext1">{user.name}</span>
+                          <span className="font-medium text-green">
+                            +${individualBalances[user.id].toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {usersYouOweIndividually.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-2">You owe:</h4>
+                    <div className="space-y-1">
+                      {usersYouOweIndividually.map(user => (
+                        <div key={user.id} className="flex justify-between text-sm">
+                          <span className="text-subtext1">{user.name}</span>
+                          <span className="font-medium text-red">
+                            ${Math.abs(individualBalances[user.id]).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <div className="pt-2 border-t border-surface0">
+                  <p className="text-xs text-subtext0 text-center">
+                    Tap to view all individual transactions
                   </p>
-                </Card>
-              ) : (
-                filteredNonGroupExpenses.map(expense => (
-                  <ExpenseCard key={expense.id} expense={expense} />
-                ))
-              )}
-            </div>
-          </div>
-        )}
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
         
         {/* Groups Section */}
         <div className="mb-24 pb-24">

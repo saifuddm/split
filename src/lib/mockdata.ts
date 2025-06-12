@@ -112,4 +112,23 @@ export const expenses: Expense[] = [
       },
     ],
   },
+  // Add another non-group expense for testing
+  {
+    id: "exp-5",
+    description: "Lunch",
+    amount: 24,
+    paidBy: users[0], // You paid
+    participants: [
+      { user: users[0], share: 12 }, // You paid 12 for yourself
+      { user: users[3], share: 12 }, // Charlie owes 12
+    ],
+    date: "2025-06-13T12:00:00Z",
+    history: [
+      {
+        actor: users[0], // You
+        action: "created this expense",
+        timestamp: "2025-06-13T12:00:00Z",
+      },
+    ],
+  },
 ];

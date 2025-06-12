@@ -12,7 +12,8 @@ export const SettleUp: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedSettlements, setSelectedSettlements] = useState<{ [groupId: string]: number }>({});
   const [individualDebtAmount, setIndividualDebtAmount] = useState(0);
-  const [settleIndividualDebt, setSettleIndividualDebt] = useState(false);
+  const [individualSettlementAmount, setIndividualSettlementAmount] = useState('0');
+  const [includeIndividualDebt, setIncludeIndividualDebt] = useState(false);
   const [step, setStep] = useState<'select-user' | 'specify-amounts' | 'confirmation'>('select-user');
 
   // Calculate overall balances to find users you owe
@@ -173,7 +174,8 @@ export const SettleUp: React.FC = () => {
     
     // Set individual debt
     setIndividualDebtAmount(individualDebt);
-    setSettleIndividualDebt(individualDebt > 0);
+    setIndividualSettlementAmount(individualDebt.toString());
+    setIncludeIndividualDebt(individualDebt > 0);
     
     setStep('specify-amounts');
   };
@@ -197,7 +199,7 @@ export const SettleUp: React.FC = () => {
   };
 
   const totalGroupSettlement = Object.values(selectedSettlements).reduce((sum, amount) => sum + amount, 0);
-  const totalIndividualSettlement = settleIndividualDebt ? individualDebtAmount : 0;
+  const totalIndividualSettlement = includeIndividualDebt ? parseFloat(individualSettlementAmount) || 0 : 0;
   const totalSettlementAmount = totalGroupSettlement + totalIndividualSettlement;
   const activeSettlements = Object.entries(selectedSettlements).filter(([_, amount]) => amount > 0);
 
@@ -210,10 +212,10 @@ export const SettleUp: React.FC = () => {
     }));
     
     // Add individual settlement if selected
-    if (settleIndividualDebt && individualDebtAmount > 0) {
+    if (includeIndividualDebt && totalIndividualSettlement > 0) {
       settlements.push({
         groupId: '', // Empty groupId for individual settlement
-        amount: individualDebtAmount
+        amount: totalIndividualSettlement
       });
     }
     
@@ -227,7 +229,8 @@ export const SettleUp: React.FC = () => {
       setSelectedUser(null);
       setSelectedSettlements({});
       setIndividualDebtAmount(0);
-      setSettleIndividualDebt(false);
+      setIndividualSettlementAmount('0');
+      setIncludeIndividualDebt(false);
     } else if (step === 'confirmation') {
       setStep('specify-amounts');
     } else {
@@ -372,20 +375,42 @@ export const SettleUp: React.FC = () => {
                 <div>
                   <h3 className="font-medium mb-3">Individual Debts</h3>
                   <Card className="p-4">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 mb-3">
                       <input
                         type="checkbox"
-                        checked={settleIndividualDebt}
-                        onChange={(e) => setSettleIndividualDebt(e.target.checked)}
+                        checked={includeIndividualDebt}
+                        onChange={(e) => setIncludeIndividualDebt(e.target.checked)}
                         className="text-blue focus:ring-blue"
                       />
                       <div className="flex-1">
-                        <h4 className="font-medium">Direct expenses</h4>
+                        <h4 className="font-medium">Direct Expenses</h4>
                         <p className="text-sm text-subtext1">
                           You owe ${individualDebtAmount.toFixed(2)} from individual expenses
                         </p>
                       </div>
                     </div>
+                    
+                    {includeIndividualDebt && (
+                      <div className="ml-6">
+                        <label className="block text-sm font-medium mb-2">
+                          Amount to pay
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-subtext1">
+                            $
+                          </span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max={individualDebtAmount}
+                            value={individualSettlementAmount}
+                            onChange={(e) => setIndividualSettlementAmount(e.target.value)}
+                            className="w-full pl-8 pr-3 py-2 bg-mantle border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </Card>
                 </div>
               )}
@@ -462,10 +487,10 @@ export const SettleUp: React.FC = () => {
                     </div>
                   );
                 })}
-                {settleIndividualDebt && individualDebtAmount > 0 && (
+                {includeIndividualDebt && totalIndividualSettlement > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-subtext1">Individual expenses</span>
-                    <span className="font-medium">${individualDebtAmount.toFixed(2)}</span>
+                    <span className="font-medium">${totalIndividualSettlement.toFixed(2)}</span>
                   </div>
                 )}
               </div>
