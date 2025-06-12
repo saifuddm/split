@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Plus, ChevronDown, Pencil, CheckCircle, Handshake } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
-import { currentUser } from '../lib/mockdata';
 import { calculateSimplifiedDebts } from '../lib/utils';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
 
 export const GroupDetail: React.FC = () => {
-  const { activeGroupId, groups, expenses, actions } = useAppStore();
+  const { activeGroupId, currentUser, groups, expenses, actions } = useAppStore();
   const [expandedExpenseId, setExpandedExpenseId] = useState<string | null>(null);
   
   const group = groups.find(g => g.id === activeGroupId);

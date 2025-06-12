@@ -1,13 +1,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppStore } from '../data/useAppStore';
-import { currentUser } from '../lib/mockdata';
+import { users } from '../lib/mockdata';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
 import { Switch } from '../components/Switch';
 import type { User, SplitMethod } from '../lib/types';
 
 export const AddExpense: React.FC = () => {
-  const { activeGroupId, editingExpenseId, groups, expenses, actions } = useAppStore();
+  const { 
+    activeGroupId, 
+    editingExpenseId, 
+    preselectedUserIdForExpense,
+    currentUser,
+    groups, 
+    expenses, 
+    actions 
+  } = useAppStore();
   
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -23,6 +31,18 @@ export const AddExpense: React.FC = () => {
   const selectedGroup = groups.find(g => g.id === selectedGroupId);
   const isEditMode = editingExpenseId !== null;
   const editingExpense = isEditMode ? expenses.find(e => e.id === editingExpenseId) : null;
+  const preselectedUser = preselectedUserIdForExpense ? users.find(u => u.id === preselectedUserIdForExpense) : null;
+  
+  // Filter groups based on preselected user
+  const availableGroups = useMemo(() => {
+    if (preselectedUser) {
+      return groups.filter(group => 
+        group.members.some(m => m.id === currentUser.id) && 
+        group.members.some(m => m.id === preselectedUser.id)
+      );
+    }
+    return groups;
+  }, [groups, preselectedUser, currentUser.id]);
   
   // Memoized participants who will actually split the cost
   const participantsToSplit = useMemo(() => {
@@ -30,7 +50,20 @@ export const AddExpense: React.FC = () => {
       return selectedParticipants.filter(p => p.id !== currentUser.id);
     }
     return selectedParticipants;
-  }, [isOwedFullAmount, paidBy.id, selectedParticipants]);
+  }, [isOwedFullAmount, paidBy.id, selectedParticipants, currentUser.id]);
+  
+  // Handle preselected user logic
+  useEffect(() => {
+    if (preselectedUser && !isEditMode) {
+      // Set the preselected user as the payer
+      setPaidBy(preselectedUser);
+      
+      // If there are available groups, select the first one
+      if (availableGroups.length > 0) {
+        setSelectedGroupId(availableGroups[0].id);
+      }
+    }
+  }, [preselectedUser, availableGroups, isEditMode]);
   
   // Pre-fill form when in edit mode
   useEffect(() => {
@@ -74,7 +107,7 @@ export const AddExpense: React.FC = () => {
         setSelectedParticipants(selectedGroup.members);
       }
     }
-  }, [selectedGroupId, selectedGroup, paidBy.id, isAdvanced, isEditMode]);
+  }, [selectedGroupId, selectedGroup, paidBy.id, isAdvanced, isEditMode, currentUser]);
   
   // Reset advanced settings when switching modes
   useEffect(() => {
@@ -210,10 +243,15 @@ export const AddExpense: React.FC = () => {
       actions.addExpense(expenseData);
     }
     
+    // Clear preselected user and navigate
+    actions.setPreselectedUserForExpense(null);
     actions.navigateTo('group-details', selectedGroupId);
   };
   
   const handleCancel = () => {
+    // Clear preselected user
+    actions.setPreselectedUserForExpense(null);
+    
     if (isEditMode) {
       actions.clearEditingExpense();
     }
@@ -261,6 +299,17 @@ export const AddExpense: React.FC = () => {
       
       <div className="max-w-md mx-auto p-4">
         <div className="space-y-6">
+          {/* Preselected User Info */}
+          {preselectedUser && !isEditMode && (
+            <div className="bg-surface0 p-4 rounded-lg">
+              <h3 className="font-medium mb-2">Adding expense with:</h3>
+              <div className="flex items-center gap-3">
+                <Avatar user={preselectedUser} size="sm" />
+                <span className="font-medium">{preselectedUser.name}</span>
+              </div>
+            </div>
+          )}
+          
           {/* Description */}
           <div>
             <label htmlFor="description" className="block text-sm font-medium mb-2">
@@ -303,19 +352,27 @@ export const AddExpense: React.FC = () => {
             <label htmlFor="group" className="block text-sm font-medium mb-2">
               Group
             </label>
-            <select
-              id="group"
-              value={selectedGroupId}
-              onChange={(e) => setSelectedGroupId(e.target.value)}
-              className="w-full px-3 py-2 bg-mantle border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
-            >
-              <option value="">Select a group</option>
-              {groups.map(group => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
-            </select>
+            {preselectedUser && availableGroups.length === 0 ? (
+              <div className="bg-surface0 p-3 rounded-lg">
+                <p className="text-sm text-subtext1">
+                  No shared groups found with {preselectedUser.name}. You need to be in the same group to add an expense.
+                </p>
+              </div>
+            ) : (
+              <select
+                id="group"
+                value={selectedGroupId}
+                onChange={(e) => setSelectedGroupId(e.target.value)}
+                className="w-full px-3 py-2 bg-mantle border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
+              >
+                <option value="">Select a group</option>
+                {availableGroups.map(group => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           
           {/* Paid By */}

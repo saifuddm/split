@@ -1,19 +1,21 @@
 import { create } from "zustand";
 import {
-  currentUser,
+  currentUser as initialCurrentUser,
   groups as initialGroups,
   expenses as initialExpenses,
 } from "../lib/mockdata";
 import { generateAuditDetails } from "../lib/utils";
 import type { Group, Expense, User, AuditEntry } from "../lib/types";
 
-type Page = "dashboard" | "group-details" | "add-expense" | "create-group" | "settle-up";
+type Page = "dashboard" | "group-details" | "add-expense" | "create-group" | "settle-up" | "settings";
 
 interface AppState {
   currentPage: Page;
   activeGroupId: string | null;
   editingExpenseId: string | null;
   hasEnteredApp: boolean;
+  preselectedUserIdForExpense: string | null;
+  currentUser: User;
   groups: Group[];
   expenses: Expense[];
   actions: {
@@ -31,6 +33,8 @@ interface AppState {
       payee: User,
       settlements: { groupId: string; amount: number }[],
     ) => void;
+    setPreselectedUserForExpense: (userId: string | null) => void;
+    updateCurrentUser: (updatedData: Partial<User>) => void;
   };
 }
 
@@ -39,6 +43,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeGroupId: null,
   editingExpenseId: null,
   hasEnteredApp: false,
+  preselectedUserIdForExpense: null,
+  currentUser: initialCurrentUser,
   groups: initialGroups,
   expenses: initialExpenses,
   actions: {
@@ -51,7 +57,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         id: `exp-${Date.now()}`,
         history: [
           {
-            actor: currentUser,
+            actor: get().currentUser,
             action: "created this expense",
             timestamp: new Date().toISOString(),
           },
@@ -66,7 +72,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         id: `group-${Date.now()}`,
         name: groupName,
         // Ensure the current user is always included
-        members: [currentUser, ...members],
+        members: [get().currentUser, ...members],
       };
       set((state) => ({
         groups: [...state.groups, newGroup],
@@ -86,7 +92,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const auditInfo = generateAuditDetails(originalExpense, updatedData);
 
       const newHistoryEntry: AuditEntry = {
-        actor: currentUser,
+        actor: get().currentUser,
         action: auditInfo.action,
         details: auditInfo.details, // Assign the new details string
         timestamp: new Date().toISOString(),
@@ -116,14 +122,14 @@ export const useAppStore = create<AppState>((set, get) => ({
           groupId,
           description: `Payment to ${payee.name}`,
           amount,
-          paidBy: currentUser, // You are the one paying
+          paidBy: get().currentUser, // You are the one paying
           // The payee is the sole participant, "owing" the full amount back to you.
           // This creates a negative debt for them, effectively cancelling your positive debt.
           participants: [{ user: payee, share: amount }],
           date: new Date().toISOString(),
           history: [
             {
-              actor: currentUser,
+              actor: get().currentUser,
               action: `paid ${payee.name} $${amount.toFixed(2)}`,
               timestamp: new Date().toISOString(),
             },
@@ -133,6 +139,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       set(state => ({
         expenses: [...state.expenses, ...settlementExpenses]
+      }));
+    },
+    setPreselectedUserForExpense: (userId) => {
+      set({ preselectedUserIdForExpense: userId });
+    },
+    updateCurrentUser: (updatedData) => {
+      set(state => ({
+        currentUser: { ...state.currentUser, ...updatedData }
       }));
     },
   },

@@ -6,10 +6,11 @@ import { GroupDetail } from "./pages/GroupDetail";
 import { AddExpense } from "./pages/AddExpense";
 import { CreateGroup } from "./pages/CreateGroup";
 import { SettleUp } from "./pages/SettleUp";
+import { Settings } from "./pages/Settings";
 import { LandingPage } from "./pages/LandingPage";
 
 function App() {
-  const { isDark, toggleDarkMode, initializeDarkMode } = useStore();
+  const { initializeDarkMode } = useStore();
   const { currentPage, hasEnteredApp } = useAppStore();
 
   // Initialize dark mode based on system preference
@@ -34,6 +35,8 @@ function App() {
         return <CreateGroup />;
       case 'settle-up':
         return <SettleUp />;
+      case 'settings':
+        return <Settings />;
       default:
         return <Dashboard />;
     }
@@ -42,20 +45,6 @@ function App() {
   return (
     <div className="min-h-screen bg-base text-text">
       {renderCurrentPage()}
-      
-      {/* Dark mode toggle - positioned in top right */}
-      <div className="fixed top-4 right-4 z-50">
-        <button
-          onClick={toggleDarkMode}
-          className="bg-mantle border border-surface0 rounded-lg p-2 hover:bg-surface0 transition-colors"
-        >
-          {isDark ? (
-            <span className="text-yellow">☀️</span>
-          ) : (
-            <span className="text-blue">🌙</span>
-          )}
-        </button>
-      </div>
     </div>
   );
 }

@@ -1,14 +1,14 @@
 import React from 'react';
-import { Plus, Users, Handshake } from 'lucide-react';
+import { Plus, Users, Handshake, Settings } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
-import { currentUser, users } from '../lib/mockdata';
+import { users } from '../lib/mockdata';
 import { calculateSimplifiedDebts } from '../lib/utils';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
 
 export const Dashboard: React.FC = () => {
-  const { groups, expenses, actions } = useAppStore();
+  const { currentUser, groups, expenses, actions } = useAppStore();
   
   // Calculate overall balances by first settling within each group, then aggregating
   const calculateOverallBalances = () => {
@@ -65,6 +65,11 @@ export const Dashboard: React.FC = () => {
     
     return balance;
   };
+
+  const handleUserCardClick = (userId: string) => {
+    actions.setPreselectedUserForExpense(userId);
+    actions.navigateTo('add-expense');
+  };
   
   const overallBalances = calculateOverallBalances();
   
@@ -83,14 +88,24 @@ export const Dashboard: React.FC = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Dashboard</h1>
-          <Button
-            onClick={() => actions.navigateTo('create-group')}
-            size="sm"
-            className="flex items-center gap-2"
-          >
-            <Users size={16} />
-            Create Group
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => actions.navigateTo('settings')}
+              variant="secondary"
+              size="sm"
+              className="p-2"
+            >
+              <Settings size={16} />
+            </Button>
+            <Button
+              onClick={() => actions.navigateTo('create-group')}
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <Users size={16} />
+              Create Group
+            </Button>
+          </div>
         </div>
         
         {/* Personal Balances Section */}
@@ -105,7 +120,11 @@ export const Dashboard: React.FC = () => {
             ) : (
               <div className="space-y-2">
                 {usersWhoOweYou.map(user => (
-                  <Card key={user.id}>
+                  <Card 
+                    key={user.id}
+                    onClick={() => handleUserCardClick(user.id)}
+                    className="cursor-pointer hover:bg-surface0 transition-colors"
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <Avatar user={user} />
@@ -131,7 +150,11 @@ export const Dashboard: React.FC = () => {
             ) : (
               <div className="space-y-2">
                 {usersYouOwe.map(user => (
-                  <Card key={user.id}>
+                  <Card 
+                    key={user.id}
+                    onClick={() => handleUserCardClick(user.id)}
+                    className="cursor-pointer hover:bg-surface0 transition-colors"
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <Avatar user={user} />
@@ -149,7 +172,7 @@ export const Dashboard: React.FC = () => {
         </div>
         
         {/* Groups Section */}
-        <div className="mb-20">
+        <div className="mb-24 pb-24">
           <h2 className="text-lg font-semibold mb-4">Groups</h2>
           <div className="space-y-3">
             {groups.map(group => {
