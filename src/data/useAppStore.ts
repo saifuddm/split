@@ -13,10 +13,12 @@ interface AppState {
   currentPage: Page;
   activeGroupId: string | null;
   editingExpenseId: string | null;
+  hasEnteredApp: boolean;
   groups: Group[];
   expenses: Expense[];
   actions: {
-    navigateTo: (page: Page, groupId?: string | null) => void;
+    navigateTo: (page: Page, groupId?: string) => void;
+    enterApp: () => void;
     addExpense: (newExpense: Omit<Expense, "id" | "history">) => void;
     createGroup: (groupName: string, members: User[]) => void;
     startEditingExpense: (expenseId: string) => void;
@@ -36,11 +38,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   currentPage: "dashboard",
   activeGroupId: null,
   editingExpenseId: null,
+  hasEnteredApp: false,
   groups: initialGroups,
   expenses: initialExpenses,
   actions: {
-    navigateTo: (page, groupId = null) =>
-      set({ currentPage: page, activeGroupId: groupId }),
+    navigateTo: (page, groupId) =>
+      set({ currentPage: page, activeGroupId: groupId || null }),
+    enterApp: () => set({ hasEnteredApp: true }),
     addExpense: (newExpenseData) => {
       const newExpense: Expense = {
         ...newExpenseData,
@@ -72,7 +76,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     },
     startEditingExpense: (expenseId) => {
       set({ editingExpenseId: expenseId });
-      get().actions.navigateTo("add-expense", get().activeGroupId);
+      get().actions.navigateTo("add-expense", get().activeGroupId || undefined);
     },
     updateExpense: (expenseId, updatedData) => {
       const originalExpense = get().expenses.find(e => e.id === expenseId);

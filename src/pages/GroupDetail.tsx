@@ -70,7 +70,7 @@ export const GroupDetail: React.FC = () => {
             </Button>
             <Button
               size="sm"
-              onClick={() => actions.navigateTo('add-expense', activeGroupId)}
+              onClick={() => actions.navigateTo('add-expense', activeGroupId || undefined)}
               className="p-2"
             >
               <Plus size={20} />

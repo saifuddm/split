@@ -6,15 +6,21 @@ import { GroupDetail } from "./pages/GroupDetail";
 import { AddExpense } from "./pages/AddExpense";
 import { CreateGroup } from "./pages/CreateGroup";
 import { SettleUp } from "./pages/SettleUp";
+import { LandingPage } from "./pages/LandingPage";
 
 function App() {
   const { isDark, toggleDarkMode, initializeDarkMode } = useStore();
-  const { currentPage } = useAppStore();
+  const { currentPage, hasEnteredApp } = useAppStore();
 
   // Initialize dark mode based on system preference
   useEffect(() => {
     initializeDarkMode();
   }, [initializeDarkMode]);
+
+  // If user hasn't entered the app yet, show landing page
+  if (!hasEnteredApp) {
+    return <LandingPage />;
+  }
 
   const renderCurrentPage = () => {
     switch (currentPage) {
