@@ -2,7 +2,6 @@ import React from "react";
 import { Plus, Users, Handshake, Settings, Bell } from "lucide-react";
 import { useAppStore } from "../data/useAppStore";
 import {
-  calculateOverallBalances,
   calculateIndividualBalances,
   calculateGroupBalance,
 } from "../lib/utils";
@@ -12,14 +11,6 @@ import { Avatar } from "../components/Avatar";
 
 export const Dashboard: React.FC = () => {
   const { currentUser, users, groups, expenses, actions } = useAppStore();
-
-  // Calculate overall balances using the utility function
-  const overallBalances = calculateOverallBalances(
-    currentUser,
-    users,
-    groups,
-    expenses,
-  );
 
   // Calculate individual balances (non-group only) for the summary card
   const individualBalances = calculateIndividualBalances(
