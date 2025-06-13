@@ -1,20 +1,20 @@
 // src/lib/mockData.ts
-import type { User, Group, Expense } from "./types";
+import type { User, Group, Expense, IndividualExpense, Settlement, GroupExpense } from "./types";
 
 export const currentUser: User = { id: "user-1", name: "You" };
 
 export const users: User[] = [
   currentUser,
-  { 
-    id: "user-2", 
-    name: "Alice", 
+  {
+    id: "user-2",
+    name: "Alice",
     avatarUrl: "https://i.pravatar.cc/48?u=2",
     paymentMessage: "Venmo: @alice-in-chains",
   },
   { id: "user-3", name: "Bob", avatarUrl: "https://i.pravatar.cc/48?u=3" },
-  { 
-    id: "user-4", 
-    name: "Charlie", 
+  {
+    id: "user-4",
+    name: "Charlie",
     avatarUrl: "https://i.pravatar.cc/48?u=4",
     paymentMessage: "CashApp: $char-lie",
   },
@@ -33,8 +33,8 @@ export const groups: Group[] = [
   },
 ];
 
-export const expenses: Expense[] = [
-  // Group expenses
+// Group expenses
+const groupExpenses: GroupExpense[] = [
   {
     id: "exp-1",
     groupId: "group-1",
@@ -94,8 +94,10 @@ export const expenses: Expense[] = [
       },
     ],
   },
-  
-  // Individual (non-group) expenses
+];
+
+// Individual (non-group) expenses
+const individualExpenses: IndividualExpense[] = [
   {
     id: "exp-4",
     description: "Coffee",
@@ -150,8 +152,10 @@ export const expenses: Expense[] = [
       },
     ],
   },
-  
-  // Settlement transactions
+];
+
+// Settlement transactions
+const settlements: Settlement[] = [
   {
     id: "settlement-1",
     isSettlement: true,
@@ -168,4 +172,11 @@ export const expenses: Expense[] = [
       },
     ],
   },
+];
+
+// Combine all expenses for the main export
+export const expenses: Expense[] = [
+  ...groupExpenses,
+  ...individualExpenses,
+  ...settlements,
 ];

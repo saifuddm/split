@@ -35,6 +35,10 @@ interface AppState {
       payee: User,
       settlements: { groupId: string; amount: number }[],
     ) => void;
+    recordSettlementReverse: (
+      payer: User,
+      settlements: { groupId: string; amount: number }[],
+    ) => void;
     setPreselectedUserForExpense: (userId: string | null) => void;
     updateCurrentUser: (updatedData: Partial<User>) => void;
     addUser: (name: string) => void;
@@ -144,7 +148,43 @@ export const useAppStore = create<AppState>((set, get) => ({
           if (groupId) {
             return { ...baseSettlement, groupId };
           }
-          
+
+          // For individual settlements, don't include groupId
+          return baseSettlement;
+        }
+      );
+
+      set(state => ({
+        expenses: [...state.expenses, ...settlementExpenses]
+      }));
+    },
+    recordSettlementReverse: (payer, settlements) => {
+      const settlementExpenses: Expense[] = settlements.map(
+        ({ groupId, amount }) => {
+          const baseSettlement = {
+            id: `settlement-${Date.now()}-${Math.random()}`,
+            isSettlement: true,
+            description: `Payment from ${payer.name}`,
+            amount,
+            paidBy: payer, // The other user is paying
+            // The current user is the sole participant, "owing" the full amount back to the payer.
+            // This creates a negative debt for the current user, effectively cancelling the payer's positive debt.
+            participants: [{ user: get().currentUser, share: amount }],
+            date: new Date().toISOString(),
+            history: [
+              {
+                actor: get().currentUser,
+                action: `received $${amount.toFixed(2)} from ${payer.name}`,
+                timestamp: new Date().toISOString(),
+              },
+            ],
+          };
+
+          // Only include groupId if it's not empty (for group settlements)
+          if (groupId) {
+            return { ...baseSettlement, groupId };
+          }
+
           // For individual settlements, don't include groupId
           return baseSettlement;
         }

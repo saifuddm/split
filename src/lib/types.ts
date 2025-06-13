@@ -24,6 +24,23 @@ export interface Expense {
   isSettlement?: boolean; // Add this flag
 }
 
+// More specific types for better type safety
+export interface IndividualExpense extends Omit<Expense, 'groupId' | 'isSettlement'> {
+  groupId?: never; // Explicitly exclude groupId for individual expenses
+  isSettlement?: false;
+}
+
+export interface Settlement extends Omit<Expense, 'groupId' | 'participants'> {
+  groupId?: string; // Settlements can be for groups or individuals
+  isSettlement: true;
+  participants: [{ user: User; share: number }]; // Settlements always have exactly one recipient
+}
+
+export interface GroupExpense extends Omit<Expense, 'isSettlement'> {
+  groupId: string; // Required for group expenses
+  isSettlement?: false;
+}
+
 export interface Group {
   id: string;
   name: string;
@@ -31,3 +48,6 @@ export interface Group {
 }
 
 export type SplitMethod = "equally" | "exact" | "percentage";
+
+// Helper type to get all possible expense types
+export type AnyExpense = IndividualExpense | Settlement | GroupExpense;
