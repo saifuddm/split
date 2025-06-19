@@ -52,10 +52,10 @@ export const AddExpense: React.FC = () => {
   // Check if we're in non-group mode
   const isNonGroupMode = (preselectedUser && availableGroups.length === 0) || expenseType === 'individual';
   
-  // Memoized options for "Paid by" section
+  // Memoized options for "Paid by" section - filter out invited users
   const paidByOptions = useMemo(() => {
     if (selectedGroup) {
-      return selectedGroup.members;
+      return selectedGroup.members.filter(member => !member.isInvited);
     } else if (isNonGroupMode) {
       if (isEditMode && editingExpense) {
         // In edit mode, get all unique users from the expense participants plus the payer
@@ -63,18 +63,18 @@ export const AddExpense: React.FC = () => {
         const uniqueUsers = expenseUsers.filter((user, index, self) => 
           self.findIndex(u => u.id === user.id) === index
         );
-        return uniqueUsers;
-      } else if (preselectedUser) {
+        return uniqueUsers.filter(user => !user.isInvited);
+      } else if (preselectedUser && !preselectedUser.isInvited) {
         return [currentUser, preselectedUser];
       }
     }
     return [currentUser];
   }, [selectedGroup, isNonGroupMode, isEditMode, editingExpense, preselectedUser, currentUser]);
 
-  // Memoized options for participant selection
+  // Memoized options for participant selection - filter out invited users
   const availableParticipantsForSelection = useMemo(() => {
     if (selectedGroup) {
-      return selectedGroup.members;
+      return selectedGroup.members.filter(member => !member.isInvited);
     } else if (isNonGroupMode) {
       if (isEditMode && editingExpense) {
         // In edit mode, get all unique users from the expense participants plus the payer
@@ -82,8 +82,8 @@ export const AddExpense: React.FC = () => {
         const uniqueUsers = expenseUsers.filter((user, index, self) => 
           self.findIndex(u => u.id === user.id) === index
         );
-        return uniqueUsers;
-      } else if (preselectedUser) {
+        return uniqueUsers.filter(user => !user.isInvited);
+      } else if (preselectedUser && !preselectedUser.isInvited) {
         return [currentUser, preselectedUser];
       }
     }
@@ -101,6 +101,14 @@ export const AddExpense: React.FC = () => {
   // Handle preselected user logic
   useEffect(() => {
     if (preselectedUser && !isEditMode) {
+      // Check if preselected user is invited (not registered)
+      if (preselectedUser.isInvited) {
+        // Show error message or redirect - invited users can't be in expenses yet
+        alert('This user needs to complete their signup before you can create expenses with them.');
+        navigate('/dashboard');
+        return;
+      }
+
       // Set the preselected user as the payer
       setPaidBy(preselectedUser);
       
@@ -115,7 +123,7 @@ export const AddExpense: React.FC = () => {
         setSelectedGroupId(''); // Clear group selection
       }
     }
-  }, [preselectedUser, availableGroups, isEditMode, currentUser]);
+  }, [preselectedUser, availableGroups, isEditMode, currentUser, navigate]);
   
   // Pre-fill form when in edit mode
   useEffect(() => {
@@ -154,12 +162,12 @@ export const AddExpense: React.FC = () => {
       if (!selectedGroup.members.find(m => m.id === paidBy.id)) {
         setPaidBy(currentUser);
       }
-      // In simple mode, all members are participants
+      // In simple mode, all members are participants (excluding invited users)
       if (!isAdvanced) {
-        setSelectedParticipants(selectedGroup.members);
+        setSelectedParticipants(selectedGroup.members.filter(member => !member.isInvited));
       } else if (selectedParticipants.length === 0 && !isEditMode) {
-        // Initialize with all members in advanced mode (but not when editing)
-        setSelectedParticipants(selectedGroup.members);
+        // Initialize with all members in advanced mode (but not when editing, excluding invited users)
+        setSelectedParticipants(selectedGroup.members.filter(member => !member.isInvited));
       }
     }
   }, [selectedGroupId, selectedGroup, paidBy.id, isAdvanced, isEditMode, currentUser]);
@@ -167,7 +175,7 @@ export const AddExpense: React.FC = () => {
   // Reset advanced settings when switching modes
   useEffect(() => {
     if (!isAdvanced && selectedGroup && !isEditMode) {
-      setSelectedParticipants(selectedGroup.members);
+      setSelectedParticipants(selectedGroup.members.filter(member => !member.isInvited));
       setSplitMethod('equally');
       setExactAmounts({});
       setPercentages({});
@@ -364,7 +372,7 @@ export const AddExpense: React.FC = () => {
       <div className="max-w-md mx-auto p-4">
         <div className="space-y-6">
           {/* Preselected User Info */}
-          {preselectedUser && !isEditMode && (
+          {preselectedUser && !isEditMode && !preselectedUser.isInvited && (
             <div className="bg-surface0 p-4 rounded-lg">
               <h3 className="font-medium mb-2">Adding expense with:</h3>
               <div className="flex items-center gap-3">
@@ -374,8 +382,18 @@ export const AddExpense: React.FC = () => {
             </div>
           )}
 
-          {/* Expense Type Toggle - Only show if preselected user has shared groups */}
-          {preselectedUser && availableGroups.length > 0 && !isEditMode && (
+          {/* Invited User Warning */}
+          {preselectedUser && preselectedUser.isInvited && (
+            <div className="bg-red/10 border border-red/20 p-4 rounded-lg">
+              <h3 className="font-medium text-red mb-2">User Not Available</h3>
+              <p className="text-sm text-red/80">
+                {preselectedUser.name} needs to complete their signup before you can create expenses with them.
+              </p>
+            </div>
+          )}
+
+          {/* Expense Type Toggle - Only show if preselected user has shared groups and is not invited */}
+          {preselectedUser && !preselectedUser.isInvited && availableGroups.length > 0 && !isEditMode && (
             <div className="bg-surface0 p-4 rounded-lg">
               <h3 className="font-medium mb-3">Expense Type</h3>
               <div className="flex gap-2">
@@ -482,7 +500,7 @@ export const AddExpense: React.FC = () => {
           )}
           
           {/* Paid By */}
-          {(selectedGroup || isNonGroupMode) && (
+          {(selectedGroup || isNonGroupMode) && paidByOptions.length > 0 && (
             <div>
               <label className="block text-sm font-medium mb-2">
                 Paid by
@@ -530,7 +548,7 @@ export const AddExpense: React.FC = () => {
           )}
           
           {/* Advanced Toggle */}
-          {(selectedGroup || isNonGroupMode) && (
+          {(selectedGroup || isNonGroupMode) && availableParticipantsForSelection.length > 0 && (
             <div className="border-t border-surface0 pt-4">
               <Switch
                 checked={isAdvanced}
@@ -541,7 +559,7 @@ export const AddExpense: React.FC = () => {
           )}
           
           {/* Advanced Options */}
-          {isAdvanced && (selectedGroup || isNonGroupMode) && (
+          {isAdvanced && (selectedGroup || isNonGroupMode) && availableParticipantsForSelection.length > 0 && (
             <>
               {/* Participant Selection */}
               <div>
@@ -677,7 +695,7 @@ export const AddExpense: React.FC = () => {
           )}
           
           {/* Simple Split Info */}
-          {!isAdvanced && (selectedGroup || isNonGroupMode) && (
+          {!isAdvanced && (selectedGroup || isNonGroupMode) && availableParticipantsForSelection.length > 0 && (
             <div className="bg-surface0 p-4 rounded-lg">
               <h3 className="font-medium mb-2">Split</h3>
               <p className="text-sm text-subtext1">
