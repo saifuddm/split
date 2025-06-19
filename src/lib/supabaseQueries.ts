@@ -222,6 +222,15 @@ export const createGroup = async (name: string, memberEmails: string[]): Promise
 export const getUserExpenses = async (): Promise<Expense[]> => {
   const userId = await getCurrentUserId();
   
+  // Get expense IDs where user is a participant
+  const participantExpenseIds = await getUserExpenseIds();
+  
+  // Build the OR condition dynamically
+  let orCondition = `paid_by_id.eq.${userId}`;
+  if (participantExpenseIds.length > 0) {
+    orCondition += `,id.in.(${participantExpenseIds.join(',')})`;
+  }
+  
   // Get expenses where user is involved (as payer or participant)
   const { data: expenses, error } = await supabase
     .from('expenses')
@@ -238,7 +247,7 @@ export const getUserExpenses = async (): Promise<Expense[]> => {
         created_at
       )
     `)
-    .or(`paid_by_id.eq.${userId},id.in.(${await getUserExpenseIds()})`);
+    .or(orCondition);
 
   if (error) throw error;
 
@@ -250,7 +259,7 @@ export const getUserExpenses = async (): Promise<Expense[]> => {
 };
 
 // Helper to get expense IDs where user is a participant
-const getUserExpenseIds = async (): Promise<string> => {
+const getUserExpenseIds = async (): Promise<string[]> => {
   const userId = await getCurrentUserId();
   
   const { data: participations, error } = await supabase
@@ -260,8 +269,7 @@ const getUserExpenseIds = async (): Promise<string> => {
 
   if (error) throw error;
 
-  const ids = participations?.map(p => p.expense_id) || [];
-  return ids.length > 0 ? ids.join(',') : 'null';
+  return participations?.map(p => p.expense_id) || [];
 };
 
 // Transform database expense to Expense type
