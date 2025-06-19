@@ -82,10 +82,8 @@ export const updateCurrentUserProfile = async (updates: Partial<User>): Promise<
 
 // Delete current user account
 export const deleteCurrentUserAccount = async (): Promise<void> => {
-  const userId = await getCurrentUserId();
-  
-  // Delete the user's auth account (this will cascade to delete profile and related data)
-  const { error } = await supabase.auth.admin.deleteUser(userId);
+  // Use the server-side function to delete the current user
+  const { error } = await supabase.rpc('delete_current_user');
   
   if (error) throw error;
 };
