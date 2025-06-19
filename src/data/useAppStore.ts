@@ -23,6 +23,7 @@ interface AppState {
     // User management
     updateCurrentUser: (updatedData: Partial<User>) => Promise<void>;
     inviteUserByEmail: (email: string, fullName?: string) => Promise<void>;
+    deleteAccount: () => Promise<void>;
     
     // Group management
     createGroup: (groupName: string, memberEmails: string[]) => Promise<void>;
@@ -123,6 +124,33 @@ export const useAppStore = create<AppState>((set, get) => ({
           error: error instanceof Error ? error.message : 'Failed to invite user',
           isLoading: false 
         });
+      }
+    },
+
+    deleteAccount: async () => {
+      try {
+        set({ isLoading: true, error: null });
+        
+        await supabaseQueries.deleteCurrentUserAccount();
+        
+        // Clear all local state after successful deletion
+        set({
+          currentUser: null,
+          users: [],
+          groups: [],
+          expenses: [],
+          editingExpenseId: null,
+          preselectedUserIdForExpense: null,
+          isLoading: false,
+          error: null,
+        });
+      } catch (error) {
+        console.error('Failed to delete account:', error);
+        set({ 
+          error: error instanceof Error ? error.message : 'Failed to delete account',
+          isLoading: false 
+        });
+        throw error; // Re-throw so the UI can handle it
       }
     },
 

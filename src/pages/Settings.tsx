@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, UserPlus, Mail, User as UserIcon, LogOut } from 'lucide-react';
+import { ArrowLeft, UserPlus, Mail, User as UserIcon, LogOut, Trash2, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../data/useAppStore';
 import { useStore } from '../data/store';
@@ -19,6 +19,9 @@ export const Settings: React.FC = () => {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserName, setNewUserName] = useState('');
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   // Get all users except the current user
   const otherUsers = users.filter(user => user.id !== currentUser?.id);
@@ -61,6 +64,28 @@ export const Settings: React.FC = () => {
       console.error('Failed to sign out:', err);
       setIsSigningOut(false);
     }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') {
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    try {
+      await actions.deleteAccount();
+      // After successful deletion, sign out and redirect
+      await signOut();
+      navigate('/welcome');
+    } catch (err) {
+      console.error('Failed to delete account:', err);
+      setIsDeletingAccount(false);
+    }
+  };
+
+  const handleCloseDeleteModal = () => {
+    setShowDeleteModal(false);
+    setDeleteConfirmText('');
   };
 
   if (!currentUser) {
@@ -290,15 +315,27 @@ export const Settings: React.FC = () => {
           <div className="bg-mantle rounded-lg p-4 border border-surface0">
             <h2 className="text-lg font-semibold mb-4">Account</h2>
             
-            <Button
-              onClick={handleSignOut}
-              variant="destructive"
-              disabled={isSigningOut}
-              className="flex items-center gap-2 w-full justify-center"
-            >
-              <LogOut size={16} />
-              {isSigningOut ? 'Signing Out...' : 'Sign Out'}
-            </Button>
+            <div className="space-y-3">
+              <Button
+                onClick={handleSignOut}
+                variant="secondary"
+                disabled={isSigningOut}
+                className="flex items-center gap-2 w-full justify-center"
+              >
+                <LogOut size={16} />
+                {isSigningOut ? 'Signing Out...' : 'Sign Out'}
+              </Button>
+
+              <Button
+                onClick={() => setShowDeleteModal(true)}
+                variant="destructive"
+                disabled={isLoading}
+                className="flex items-center gap-2 w-full justify-center"
+              >
+                <Trash2 size={16} />
+                Delete Account
+              </Button>
+            </div>
           </div>
 
           {/* App Information */}
@@ -322,6 +359,72 @@ export const Settings: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-mantle rounded-lg p-6 w-full max-w-md border border-surface0">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red/20 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-red" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-red">Delete Account</h3>
+                <p className="text-sm text-subtext1">This action cannot be undone</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-red/10 border border-red/20 rounded-lg p-3">
+                <p className="text-sm text-red/90">
+                  <strong>Warning:</strong> Deleting your account will permanently remove:
+                </p>
+                <ul className="text-sm text-red/80 mt-2 space-y-1 list-disc list-inside">
+                  <li>Your profile and payment information</li>
+                  <li>All expenses you've created</li>
+                  <li>Your participation in group expenses</li>
+                  <li>All settlement history</li>
+                  <li>Your membership in all groups</li>
+                </ul>
+              </div>
+
+              <div>
+                <label htmlFor="deleteConfirm" className="block text-sm font-medium mb-2">
+                  Type <span className="font-mono bg-surface0 px-1 rounded">DELETE</span> to confirm:
+                </label>
+                <input
+                  id="deleteConfirm"
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="DELETE"
+                  className="w-full px-3 py-2 bg-base border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-red focus:border-transparent"
+                  disabled={isDeletingAccount}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleCloseDeleteModal}
+                  variant="secondary"
+                  disabled={isDeletingAccount}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleDeleteAccount}
+                  variant="destructive"
+                  disabled={isDeletingAccount || deleteConfirmText !== 'DELETE'}
+                  className={`flex-1 ${deleteConfirmText !== 'DELETE' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {isDeletingAccount ? 'Deleting...' : 'Delete Account'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

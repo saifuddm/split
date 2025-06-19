@@ -80,6 +80,16 @@ export const updateCurrentUserProfile = async (updates: Partial<User>): Promise<
   if (error) throw error;
 };
 
+// Delete current user account
+export const deleteCurrentUserAccount = async (): Promise<void> => {
+  const userId = await getCurrentUserId();
+  
+  // Delete the user's auth account (this will cascade to delete profile and related data)
+  const { error } = await supabase.auth.admin.deleteUser(userId);
+  
+  if (error) throw error;
+};
+
 // Invite user by email
 export const inviteUserByEmail = async (email: string, fullName?: string): Promise<void> => {
   const userId = await getCurrentUserId();
