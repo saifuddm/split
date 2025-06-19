@@ -1,178 +1,72 @@
 import { supabase } from './supabaseClient';
 import type { User, Group, Expense, AuditEntry } from './types';
 
-// Type definitions for database rows
-interface ProfileRow {
-  id: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
-  payment_message: string | null;
-  email: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface GroupRow {
-  id: string;
-  name: string;
-  created_by: string;
-  created_at: string;
-  group_members: {
-    user_id: string;
-    joined_at: string;
-    profiles: ProfileRow;
-  }[];
-}
-
-interface ExpenseRow {
-  id: string;
-  description: string;
-  amount: number;
-  paid_by_id: string;
-  group_id: string | null;
-  is_settlement: boolean;
-  transaction_date: string;
-  created_at: string;
-  profiles: ProfileRow; // The payer
-  expense_participants: {
-    user_id: string;
-    share: number;
-    profiles: ProfileRow;
-  }[];
-  expense_history: {
-    id: number;
-    actor_id: string;
-    action: string;
-    details: string | null;
-    created_at: string;
-    profiles: ProfileRow;
-  }[];
-}
-
-// Helper function to convert ProfileRow to User
-const profileRowToUser = (profile: ProfileRow): User => ({
-  id: profile.id || `invited-${profile.email}`, // Use email-based ID for invited users
-  name: profile.full_name || profile.email?.split('@')[0] || 'Unknown User',
-  avatarUrl: profile.avatar_url || undefined,
-  paymentMessage: profile.payment_message || undefined,
-  email: profile.email || undefined,
-  isInvited: profile.id === null, // Flag to identify invited users
-});
-
-// Helper function to convert ExpenseRow to Expense
-const expenseRowToExpense = (expense: ExpenseRow): Expense => ({
-  id: expense.id,
-  description: expense.description,
-  amount: expense.amount,
-  paidBy: profileRowToUser(expense.profiles),
-  groupId: expense.group_id || undefined,
-  participants: expense.expense_participants.map(ep => ({
-    user: profileRowToUser(ep.profiles),
-    share: ep.share,
-  })),
-  date: expense.transaction_date,
-  isSettlement: expense.is_settlement,
-  history: expense.expense_history.map(eh => ({
-    actor: profileRowToUser(eh.profiles),
-    action: eh.action,
-    details: eh.details || undefined,
-    timestamp: eh.created_at,
-  })),
-});
-
-// Get current user's profile
-export const getCurrentUserProfile = async (): Promise<User | null> => {
+// Helper function to get current user ID
+const getCurrentUserId = async () => {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) throw new Error('No authenticated user');
+  return user.id;
+};
 
+// Transform database profile to User type
+const transformProfile = (profile: any): User => ({
+  id: profile.id,
+  name: profile.full_name || 'Unknown User',
+  email: profile.email,
+  avatarUrl: profile.avatar_url,
+  paymentMessage: profile.payment_message,
+});
+
+// Transform invited user to User type (with special ID format)
+const transformInvitedUser = (invitedUser: any): User => ({
+  id: `invited_${invitedUser.id}`, // Special prefix to identify invited users
+  name: invitedUser.full_name || invitedUser.email.split('@')[0],
+  email: invitedUser.email,
+  avatarUrl: undefined,
+  paymentMessage: undefined,
+  isInvited: true,
+});
+
+// Get all profiles (both registered and invited users)
+export const getAllProfiles = async (): Promise<User[]> => {
+  // Get registered users
+  const { data: profiles, error: profilesError } = await supabase
+    .from('profiles')
+    .select('*');
+
+  if (profilesError) throw profilesError;
+
+  // Get invited users
+  const { data: invitedUsers, error: invitedError } = await supabase
+    .from('invited_users')
+    .select('*');
+
+  if (invitedError) throw invitedError;
+
+  const registeredUsers = (profiles || []).map(transformProfile);
+  const pendingUsers = (invitedUsers || []).map(transformInvitedUser);
+
+  return [...registeredUsers, ...pendingUsers];
+};
+
+// Get current user profile
+export const getCurrentUserProfile = async (): Promise<User> => {
+  const userId = await getCurrentUserId();
+  
   const { data: profile, error } = await supabase
     .from('profiles')
     .select('*')
-    .eq('id', user.id)
+    .eq('id', userId)
     .single();
 
-  if (error || !profile) return null;
-
-  return profileRowToUser(profile);
+  if (error) throw error;
+  return transformProfile(profile);
 };
 
-// Get all profiles (users) that the current user can see
-export const getAllProfiles = async (): Promise<User[]> => {
-  const { data: profiles, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('full_name');
-
-  if (error) {
-    console.error('Error fetching profiles:', error);
-    return [];
-  }
-
-  return profiles.map(profileRowToUser);
-};
-
-// Get all groups for the current user
-export const getAllGroups = async (): Promise<Group[]> => {
-  const { data: groups, error } = await supabase
-    .from('groups')
-    .select(`
-      *,
-      group_members (
-        user_id,
-        joined_at,
-        profiles (*)
-      )
-    `)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Error fetching groups:', error);
-    return [];
-  }
-
-  return groups.map((group: GroupRow) => ({
-    id: group.id,
-    name: group.name,
-    members: group.group_members.map(gm => profileRowToUser(gm.profiles)),
-  }));
-};
-
-// Get all expenses for the current user
-export const getAllExpenses = async (): Promise<Expense[]> => {
-  const { data: expenses, error } = await supabase
-    .from('expenses')
-    .select(`
-      *,
-      profiles!expenses_paid_by_id_fkey (*),
-      expense_participants (
-        user_id,
-        share,
-        profiles (*)
-      ),
-      expense_history (
-        id,
-        actor_id,
-        action,
-        details,
-        created_at,
-        profiles (*)
-      )
-    `)
-    .order('transaction_date', { ascending: false });
-
-  if (error) {
-    console.error('Error fetching expenses:', error);
-    return [];
-  }
-
-  return expenses.map(expenseRowToExpense);
-};
-
-// Update current user's profile
-export const updateUserProfile = async (updates: Partial<User>): Promise<boolean> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
-
+// Update current user profile
+export const updateCurrentUserProfile = async (updates: Partial<User>): Promise<void> => {
+  const userId = await getCurrentUserId();
+  
   const { error } = await supabase
     .from('profiles')
     .update({
@@ -181,385 +75,383 @@ export const updateUserProfile = async (updates: Partial<User>): Promise<boolean
       payment_message: updates.paymentMessage,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', user.id);
+    .eq('id', userId);
 
-  if (error) {
-    console.error('Error updating profile:', error);
-    return false;
-  }
-
-  return true;
+  if (error) throw error;
 };
 
-// Invite a user by email (create placeholder profile)
-export const inviteUserByEmail = async (email: string, name?: string): Promise<boolean> => {
-  // Check if user already exists
-  const { data: existingProfile } = await supabase
-    .from('profiles')
-    .select('id, email')
-    .eq('email', email)
-    .single();
-
-  if (existingProfile) {
-    console.log('User already exists');
-    return true; // User already exists, consider it successful
-  }
-
-  // Create placeholder profile
+// Invite user by email
+export const inviteUserByEmail = async (email: string, fullName?: string): Promise<void> => {
+  const userId = await getCurrentUserId();
+  
   const { error } = await supabase
-    .from('profiles')
+    .from('invited_users')
     .insert({
-      id: null, // Placeholder profile
-      email: email,
-      full_name: name || email.split('@')[0],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      email: email.toLowerCase().trim(),
+      full_name: fullName?.trim(),
+      invited_by: userId,
     });
 
-  if (error) {
-    console.error('Error inviting user:', error);
-    return false;
+  if (error) throw error;
+};
+
+// Get all groups for current user
+export const getUserGroups = async (): Promise<Group[]> => {
+  const userId = await getCurrentUserId();
+  
+  const { data: groupMemberships, error } = await supabase
+    .from('group_members')
+    .select(`
+      group_id,
+      groups!inner (
+        id,
+        name,
+        created_by,
+        created_at
+      )
+    `)
+    .eq('user_id', userId);
+
+  if (error) throw error;
+
+  // Get all unique group IDs
+  const groupIds = groupMemberships?.map(gm => gm.group_id) || [];
+  
+  if (groupIds.length === 0) return [];
+
+  // Get all members for these groups
+  const { data: allMemberships, error: membersError } = await supabase
+    .from('group_members')
+    .select(`
+      group_id,
+      user_id,
+      joined_at
+    `)
+    .in('group_id', groupIds);
+
+  if (membersError) throw membersError;
+
+  // Get all user profiles and invited users
+  const allUsers = await getAllProfiles();
+  const userMap = new Map(allUsers.map(user => [user.id, user]));
+
+  // Build groups with members
+  const groups: Group[] = [];
+  const processedGroups = new Set();
+
+  for (const membership of groupMemberships || []) {
+    const groupId = membership.group_id;
+    
+    if (processedGroups.has(groupId)) continue;
+    processedGroups.add(groupId);
+
+    const groupMembers = (allMemberships || [])
+      .filter(m => m.group_id === groupId)
+      .map(m => {
+        // Handle both regular users and invited users
+        const userId = m.user_id;
+        return userMap.get(userId);
+      })
+      .filter(Boolean) as User[];
+
+    groups.push({
+      id: groupId,
+      name: membership.groups.name,
+      members: groupMembers,
+    });
   }
 
-  return true;
+  return groups;
 };
 
 // Create a new group
-export const createGroup = async (name: string, memberEmails: string[]): Promise<string | null> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  // Start a transaction
+export const createGroup = async (name: string, memberEmails: string[]): Promise<string> => {
+  const userId = await getCurrentUserId();
+  
+  // Create the group
   const { data: group, error: groupError } = await supabase
     .from('groups')
     .insert({
-      name,
-      created_by: user.id,
+      name: name.trim(),
+      created_by: userId,
     })
-    .select()
+    .select('id')
     .single();
 
-  if (groupError || !group) {
-    console.error('Error creating group:', groupError);
-    return null;
-  }
+  if (groupError) throw groupError;
 
-  // Get all member profiles (including invited ones)
-  const { data: memberProfiles, error: membersError } = await supabase
-    .from('profiles')
-    .select('id, email')
-    .in('email', [user.email!, ...memberEmails]);
+  const groupId = group.id;
 
-  if (membersError) {
-    console.error('Error fetching member profiles:', membersError);
-    return null;
-  }
+  // Get all users (registered and invited)
+  const allUsers = await getAllProfiles();
+  const usersByEmail = new Map(allUsers.map(user => [user.email, user]));
 
-  // Create group memberships
-  const memberships = memberProfiles
-    .filter(profile => profile.id) // Only add users who have signed up
-    .map(profile => ({
-      group_id: group.id,
-      user_id: profile.id,
-    }));
+  // Prepare member insertions
+  const memberInserts = [];
 
-  if (memberships.length > 0) {
-    const { error: membershipError } = await supabase
-      .from('group_members')
-      .insert(memberships);
+  // Add creator
+  memberInserts.push({
+    group_id: groupId,
+    user_id: userId,
+  });
 
-    if (membershipError) {
-      console.error('Error adding group members:', membershipError);
-      return null;
+  // Add other members
+  for (const email of memberEmails) {
+    const user = usersByEmail.get(email.toLowerCase().trim());
+    if (user) {
+      // Extract the actual user ID (remove invited_ prefix if present)
+      const actualUserId = user.id.startsWith('invited_') ? user.id.replace('invited_', '') : user.id;
+      memberInserts.push({
+        group_id: groupId,
+        user_id: actualUserId,
+      });
     }
   }
 
-  return group.id;
+  // Insert all memberships
+  const { error: membersError } = await supabase
+    .from('group_members')
+    .insert(memberInserts);
+
+  if (membersError) throw membersError;
+
+  return groupId;
 };
 
-// Add an expense
-export const addExpense = async (expenseData: {
-  description: string;
-  amount: number;
-  paidByEmail: string;
-  groupId?: string;
-  participants: { email: string; share: number }[];
-  isSettlement?: boolean;
-  transactionDate?: string;
-}): Promise<boolean> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
+// Get all expenses for current user
+export const getUserExpenses = async (): Promise<Expense[]> => {
+  const userId = await getCurrentUserId();
+  
+  // Get expenses where user is involved (as payer or participant)
+  const { data: expenses, error } = await supabase
+    .from('expenses')
+    .select(`
+      *,
+      expense_participants (
+        user_id,
+        share
+      ),
+      expense_history (
+        actor_id,
+        action,
+        details,
+        created_at
+      )
+    `)
+    .or(`paid_by_id.eq.${userId},id.in.(${await getUserExpenseIds()})`);
 
-  // Get payer profile
-  const { data: payerProfile, error: payerError } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('email', expenseData.paidByEmail)
-    .single();
+  if (error) throw error;
 
-  if (payerError || !payerProfile?.id) {
-    console.error('Error finding payer:', payerError);
-    return false;
-  }
+  // Get all users for transformation
+  const allUsers = await getAllProfiles();
+  const userMap = new Map(allUsers.map(user => [user.id, user]));
 
-  // Create the expense
+  return (expenses || []).map(expense => transformExpense(expense, userMap));
+};
+
+// Helper to get expense IDs where user is a participant
+const getUserExpenseIds = async (): Promise<string> => {
+  const userId = await getCurrentUserId();
+  
+  const { data: participations, error } = await supabase
+    .from('expense_participants')
+    .select('expense_id')
+    .eq('user_id', userId);
+
+  if (error) throw error;
+
+  const ids = participations?.map(p => p.expense_id) || [];
+  return ids.length > 0 ? ids.join(',') : 'null';
+};
+
+// Transform database expense to Expense type
+const transformExpense = (expense: any, userMap: Map<string, User>): Expense => {
+  const paidBy = userMap.get(expense.paid_by_id);
+  if (!paidBy) throw new Error(`User not found: ${expense.paid_by_id}`);
+
+  const participants = (expense.expense_participants || []).map((p: any) => {
+    const user = userMap.get(p.user_id);
+    if (!user) throw new Error(`Participant user not found: ${p.user_id}`);
+    
+    return {
+      user,
+      share: parseFloat(p.share),
+    };
+  });
+
+  const history: AuditEntry[] = (expense.expense_history || []).map((h: any) => {
+    const actor = userMap.get(h.actor_id);
+    if (!actor) throw new Error(`History actor not found: ${h.actor_id}`);
+    
+    return {
+      actor,
+      action: h.action,
+      details: h.details,
+      timestamp: h.created_at,
+    };
+  });
+
+  return {
+    id: expense.id,
+    groupId: expense.group_id,
+    description: expense.description,
+    amount: parseFloat(expense.amount),
+    paidBy,
+    participants,
+    date: expense.transaction_date,
+    history,
+    isSettlement: expense.is_settlement,
+  };
+};
+
+// Add a new expense
+export const addExpense = async (expenseData: Omit<Expense, 'id' | 'history'>): Promise<void> => {
+  const userId = await getCurrentUserId();
+  
+  // Insert the expense
   const { data: expense, error: expenseError } = await supabase
     .from('expenses')
     .insert({
       description: expenseData.description,
       amount: expenseData.amount,
-      paid_by_id: payerProfile.id,
+      paid_by_id: expenseData.paidBy.id.startsWith('invited_') 
+        ? expenseData.paidBy.id.replace('invited_', '') 
+        : expenseData.paidBy.id,
       group_id: expenseData.groupId || null,
       is_settlement: expenseData.isSettlement || false,
-      transaction_date: expenseData.transactionDate || new Date().toISOString(),
+      transaction_date: expenseData.date,
     })
-    .select()
+    .select('id')
     .single();
 
-  if (expenseError || !expense) {
-    console.error('Error creating expense:', expenseError);
-    return false;
-  }
+  if (expenseError) throw expenseError;
 
-  // Get participant profiles
-  const participantEmails = expenseData.participants.map(p => p.email);
-  const { data: participantProfiles, error: participantsError } = await supabase
-    .from('profiles')
-    .select('id, email')
-    .in('email', participantEmails);
+  const expenseId = expense.id;
 
-  if (participantsError) {
-    console.error('Error fetching participants:', participantsError);
-    return false;
-  }
+  // Insert participants
+  const participantInserts = expenseData.participants.map(p => ({
+    expense_id: expenseId,
+    user_id: p.user.id.startsWith('invited_') 
+      ? p.user.id.replace('invited_', '') 
+      : p.user.id,
+    share: p.share,
+  }));
 
-  // Create participant records
-  const participantRecords = expenseData.participants
-    .map(p => {
-      const profile = participantProfiles.find(pp => pp.email === p.email);
-      if (!profile?.id) return null;
-      return {
-        expense_id: expense.id,
-        user_id: profile.id,
-        share: p.share,
-      };
-    })
-    .filter(Boolean);
+  const { error: participantsError } = await supabase
+    .from('expense_participants')
+    .insert(participantInserts);
 
-  if (participantRecords.length > 0) {
-    const { error: participantsInsertError } = await supabase
-      .from('expense_participants')
-      .insert(participantRecords);
+  if (participantsError) throw participantsError;
 
-    if (participantsInsertError) {
-      console.error('Error adding participants:', participantsInsertError);
-      return false;
-    }
-  }
-
-  // Add history entry
+  // Insert history entry
   const { error: historyError } = await supabase
     .from('expense_history')
     .insert({
-      expense_id: expense.id,
-      actor_id: user.id,
-      action: expenseData.isSettlement ? 
-        `paid ${expenseData.participants[0]?.email} $${expenseData.amount.toFixed(2)}` :
-        'created this expense',
+      expense_id: expenseId,
+      actor_id: userId,
+      action: 'created this expense',
     });
 
-  if (historyError) {
-    console.error('Error adding history:', historyError);
-  }
-
-  return true;
+  if (historyError) throw historyError;
 };
 
-// Update an expense
+// Update an existing expense
 export const updateExpense = async (
-  expenseId: string,
-  expenseData: {
-    description: string;
-    amount: number;
-    paidByEmail: string;
-    groupId?: string;
-    participants: { email: string; share: number }[];
-    transactionDate?: string;
-  },
-  auditInfo: { action: string; details?: string }
-): Promise<boolean> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
-
-  // Get payer profile
-  const { data: payerProfile, error: payerError } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('email', expenseData.paidByEmail)
-    .single();
-
-  if (payerError || !payerProfile?.id) {
-    console.error('Error finding payer:', payerError);
-    return false;
-  }
-
+  expenseId: string, 
+  expenseData: Omit<Expense, 'id' | 'history'>,
+  auditAction: string,
+  auditDetails?: string
+): Promise<void> => {
+  const userId = await getCurrentUserId();
+  
   // Update the expense
   const { error: expenseError } = await supabase
     .from('expenses')
     .update({
       description: expenseData.description,
       amount: expenseData.amount,
-      paid_by_id: payerProfile.id,
+      paid_by_id: expenseData.paidBy.id.startsWith('invited_') 
+        ? expenseData.paidBy.id.replace('invited_', '') 
+        : expenseData.paidBy.id,
       group_id: expenseData.groupId || null,
-      transaction_date: expenseData.transactionDate || new Date().toISOString(),
+      transaction_date: expenseData.date,
     })
     .eq('id', expenseId);
 
-  if (expenseError) {
-    console.error('Error updating expense:', expenseError);
-    return false;
-  }
+  if (expenseError) throw expenseError;
 
   // Delete existing participants
-  const { error: deleteParticipantsError } = await supabase
+  const { error: deleteError } = await supabase
     .from('expense_participants')
     .delete()
     .eq('expense_id', expenseId);
 
-  if (deleteParticipantsError) {
-    console.error('Error deleting participants:', deleteParticipantsError);
-    return false;
-  }
+  if (deleteError) throw deleteError;
 
-  // Get new participant profiles
-  const participantEmails = expenseData.participants.map(p => p.email);
-  const { data: participantProfiles, error: participantsError } = await supabase
-    .from('profiles')
-    .select('id, email')
-    .in('email', participantEmails);
+  // Insert new participants
+  const participantInserts = expenseData.participants.map(p => ({
+    expense_id: expenseId,
+    user_id: p.user.id.startsWith('invited_') 
+      ? p.user.id.replace('invited_', '') 
+      : p.user.id,
+    share: p.share,
+  }));
 
-  if (participantsError) {
-    console.error('Error fetching participants:', participantsError);
-    return false;
-  }
+  const { error: participantsError } = await supabase
+    .from('expense_participants')
+    .insert(participantInserts);
 
-  // Create new participant records
-  const participantRecords = expenseData.participants
-    .map(p => {
-      const profile = participantProfiles.find(pp => pp.email === p.email);
-      if (!profile?.id) return null;
-      return {
-        expense_id: expenseId,
-        user_id: profile.id,
-        share: p.share,
-      };
-    })
-    .filter(Boolean);
+  if (participantsError) throw participantsError;
 
-  if (participantRecords.length > 0) {
-    const { error: participantsInsertError } = await supabase
-      .from('expense_participants')
-      .insert(participantRecords);
-
-    if (participantsInsertError) {
-      console.error('Error adding participants:', participantsInsertError);
-      return false;
-    }
-  }
-
-  // Add history entry
+  // Insert history entry
   const { error: historyError } = await supabase
     .from('expense_history')
     .insert({
       expense_id: expenseId,
-      actor_id: user.id,
-      action: auditInfo.action,
-      details: auditInfo.details,
+      actor_id: userId,
+      action: auditAction,
+      details: auditDetails,
     });
 
-  if (historyError) {
-    console.error('Error adding history:', historyError);
-  }
-
-  return true;
+  if (historyError) throw historyError;
 };
 
 // Record settlement
 export const recordSettlement = async (
-  payeeEmail: string,
+  payee: User,
   settlements: { groupId: string; amount: number }[]
-): Promise<boolean> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
-
-  // Get payee profile
-  const { data: payeeProfile, error: payeeError } = await supabase
-    .from('profiles')
-    .select('id, full_name')
-    .eq('email', payeeEmail)
-    .single();
-
-  if (payeeError || !payeeProfile?.id) {
-    console.error('Error finding payee:', payeeError);
-    return false;
-  }
-
-  // Create settlement expenses
+): Promise<void> => {
   for (const settlement of settlements) {
-    const success = await addExpense({
-      description: `Payment to ${payeeProfile.full_name || payeeEmail}`,
+    const settlementData: Omit<Expense, 'id' | 'history'> = {
+      description: `Payment to ${payee.name}`,
       amount: settlement.amount,
-      paidByEmail: user.email!,
+      paidBy: await getCurrentUserProfile(),
+      participants: [{ user: payee, share: settlement.amount }],
+      date: new Date().toISOString(),
       groupId: settlement.groupId || undefined,
-      participants: [{ email: payeeEmail, share: settlement.amount }],
       isSettlement: true,
-    });
+    };
 
-    if (!success) {
-      console.error('Error creating settlement:', settlement);
-      return false;
-    }
+    await addExpense(settlementData);
   }
-
-  return true;
 };
 
-// Record reverse settlement (when someone pays you)
+// Record reverse settlement (someone paid you)
 export const recordSettlementReverse = async (
-  payerEmail: string,
+  payer: User,
   settlements: { groupId: string; amount: number }[]
-): Promise<boolean> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
-
-  // Get payer profile
-  const { data: payerProfile, error: payerError } = await supabase
-    .from('profiles')
-    .select('id, full_name')
-    .eq('email', payerEmail)
-    .single();
-
-  if (payerError || !payerProfile?.id) {
-    console.error('Error finding payer:', payerError);
-    return false;
-  }
-
-  // Create settlement expenses
+): Promise<void> => {
   for (const settlement of settlements) {
-    const success = await addExpense({
-      description: `Payment from ${payerProfile.full_name || payerEmail}`,
+    const settlementData: Omit<Expense, 'id' | 'history'> = {
+      description: `Payment from ${payer.name}`,
       amount: settlement.amount,
-      paidByEmail: payerEmail,
+      paidBy: payer,
+      participants: [{ user: await getCurrentUserProfile(), share: settlement.amount }],
+      date: new Date().toISOString(),
       groupId: settlement.groupId || undefined,
-      participants: [{ email: user.email!, share: settlement.amount }],
       isSettlement: true,
-    });
+    };
 
-    if (!success) {
-      console.error('Error creating reverse settlement:', settlement);
-      return false;
-    }
+    await addExpense(settlementData);
   }
-
-  return true;
 };

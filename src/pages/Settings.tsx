@@ -1,19 +1,15 @@
 import React, { useState } from 'react';
-import { ArrowLeft, UserPlus, LogOut, Mail } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, UserPlus, Mail, User as UserIcon } from 'lucide-react';
 import { useAppStore } from '../data/useAppStore';
 import { useStore } from '../data/store';
-import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/Button';
 import { Switch } from '../components/Switch';
 import { Avatar } from '../components/Avatar';
 import { Card } from '../components/Card';
 
 export const Settings: React.FC = () => {
-  const navigate = useNavigate();
-  const { currentUser, users, actions } = useAppStore();
+  const { currentUser, users, isLoading, error, actions } = useAppStore();
   const { isDark, toggleDarkMode } = useStore();
-  const { user, signOut } = useAuth();
   const [paymentMessage, setPaymentMessage] = useState(currentUser?.paymentMessage || '');
   const [isInviting, setIsInviting] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState('');
@@ -23,25 +19,25 @@ export const Settings: React.FC = () => {
   const otherUsers = users.filter(user => user.id !== currentUser?.id);
 
   const handleSavePaymentMessage = async () => {
-    if (currentUser) {
+    if (!currentUser) return;
+    
+    try {
       await actions.updateCurrentUser({ paymentMessage: paymentMessage.trim() || undefined });
+    } catch (err) {
+      console.error('Failed to save payment message:', err);
     }
-  };
-
-  const handleBack = async () => {
-    // Save payment message before leaving if it's different
-    if (paymentMessage.trim() !== (currentUser?.paymentMessage || '')) {
-      await handleSavePaymentMessage();
-    }
-    navigate('/dashboard');
   };
 
   const handleInviteUser = async () => {
-    if (newUserEmail.trim()) {
-      await actions.inviteUser(newUserEmail.trim(), newUserName.trim() || undefined);
+    if (!newUserEmail.trim()) return;
+    
+    try {
+      await actions.inviteUserByEmail(newUserEmail.trim(), newUserName.trim() || undefined);
       setNewUserEmail('');
       setNewUserName('');
       setIsInviting(false);
+    } catch (err) {
+      console.error('Failed to invite user:', err);
     }
   };
 
@@ -51,17 +47,10 @@ export const Settings: React.FC = () => {
     setIsInviting(false);
   };
 
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/login');
-  };
-
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-base text-text flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-subtext1">Loading...</p>
-        </div>
+        <p>Loading user data...</p>
       </div>
     );
   }
@@ -74,7 +63,7 @@ export const Settings: React.FC = () => {
           <Button
             variant="secondary"
             size="sm"
-            onClick={handleBack}
+            onClick={() => window.history.back()}
             className="p-2"
           >
             <ArrowLeft size={20} />
@@ -84,6 +73,21 @@ export const Settings: React.FC = () => {
       </div>
 
       <div className="max-w-md mx-auto p-4">
+        {/* Error Display */}
+        {error && (
+          <div className="mb-4 p-3 bg-red/10 border border-red/20 rounded-lg">
+            <p className="text-red text-sm">{error}</p>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={actions.clearError}
+              className="mt-2"
+            >
+              Dismiss
+            </Button>
+          </div>
+        )}
+
         <div className="space-y-6">
           {/* User Profile Section */}
           <div className="bg-mantle rounded-lg p-4 border border-surface0">
@@ -91,21 +95,11 @@ export const Settings: React.FC = () => {
             
             <div className="flex items-center gap-4 mb-4">
               <Avatar user={currentUser} size="lg" />
-              <div className="flex-1">
+              <div>
                 <h3 className="font-medium text-lg">{currentUser.name}</h3>
-                <p className="text-sm text-subtext1">{user?.email}</p>
+                <p className="text-sm text-subtext1">{currentUser.email}</p>
               </div>
             </div>
-
-            <Button
-              onClick={handleSignOut}
-              variant="destructive"
-              size="sm"
-              className="flex items-center gap-2"
-            >
-              <LogOut size={16} />
-              Sign Out
-            </Button>
           </div>
 
           {/* Payment Information Section */}
@@ -126,6 +120,7 @@ export const Settings: React.FC = () => {
                 placeholder="e.g., Venmo: @your-username, CashApp: $your-handle, or Zelle: your-email@example.com"
                 rows={3}
                 className="w-full px-3 py-2 bg-base border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent resize-none"
+                disabled={isLoading}
               />
               <p className="text-xs text-subtext0">
                 This will be shown to others when they need to pay you
@@ -134,10 +129,10 @@ export const Settings: React.FC = () => {
               <Button
                 onClick={handleSavePaymentMessage}
                 size="sm"
-                disabled={paymentMessage.trim() === (currentUser.paymentMessage || '')}
+                disabled={isLoading || paymentMessage.trim() === (currentUser.paymentMessage || '')}
                 className={paymentMessage.trim() === (currentUser.paymentMessage || '') ? 'opacity-50 cursor-not-allowed' : ''}
               >
-                Save Payment Info
+                {isLoading ? 'Saving...' : 'Save Payment Info'}
               </Button>
             </div>
           </div>
@@ -150,6 +145,7 @@ export const Settings: React.FC = () => {
                 onClick={() => setIsInviting(true)}
                 size="sm"
                 className="flex items-center gap-2"
+                disabled={isLoading}
               >
                 <UserPlus size={16} />
                 Invite User
@@ -164,52 +160,56 @@ export const Settings: React.FC = () => {
                     <label htmlFor="newUserEmail" className="block text-sm font-medium mb-1">
                       Email Address *
                     </label>
-                    <input
-                      id="newUserEmail"
-                      type="email"
-                      value={newUserEmail}
-                      onChange={(e) => setNewUserEmail(e.target.value)}
-                      placeholder="Enter user's email"
-                      className="w-full px-3 py-2 bg-mantle border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
-                      autoFocus
-                    />
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-subtext1" size={16} />
+                      <input
+                        id="newUserEmail"
+                        type="email"
+                        value={newUserEmail}
+                        onChange={(e) => setNewUserEmail(e.target.value)}
+                        placeholder="user@example.com"
+                        className="w-full pl-10 pr-3 py-2 bg-mantle border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
+                        disabled={isLoading}
+                        autoFocus
+                      />
+                    </div>
                   </div>
+                  
                   <div>
                     <label htmlFor="newUserName" className="block text-sm font-medium mb-1">
-                      Display Name (optional)
+                      Display Name (Optional)
                     </label>
-                    <input
-                      id="newUserName"
-                      type="text"
-                      value={newUserName}
-                      onChange={(e) => setNewUserName(e.target.value)}
-                      placeholder="Enter user's name"
-                      className="w-full px-3 py-2 bg-mantle border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleInviteUser();
-                        } else if (e.key === 'Escape') {
-                          handleCancelInvite();
-                        }
-                      }}
-                    />
+                    <div className="relative">
+                      <UserIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-subtext1" size={16} />
+                      <input
+                        id="newUserName"
+                        type="text"
+                        value={newUserName}
+                        onChange={(e) => setNewUserName(e.target.value)}
+                        placeholder="John Doe"
+                        className="w-full pl-10 pr-3 py-2 bg-mantle border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
+                        disabled={isLoading}
+                      />
+                    </div>
+                    <p className="text-xs text-subtext0 mt-1">
+                      If not provided, we'll use the part before @ in their email
+                    </p>
                   </div>
-                  <p className="text-xs text-subtext1">
-                    The user will be able to participate in expenses immediately. When they sign up, they'll be able to access the full app.
-                  </p>
+                  
                   <div className="flex gap-2">
                     <Button
                       onClick={handleInviteUser}
                       size="sm"
-                      disabled={!newUserEmail.trim()}
+                      disabled={isLoading || !newUserEmail.trim()}
                       className={!newUserEmail.trim() ? 'opacity-50 cursor-not-allowed' : ''}
                     >
-                      Invite User
+                      {isLoading ? 'Inviting...' : 'Send Invite'}
                     </Button>
                     <Button
                       onClick={handleCancelInvite}
                       variant="secondary"
                       size="sm"
+                      disabled={isLoading}
                     >
                       Cancel
                     </Button>
@@ -228,18 +228,12 @@ export const Settings: React.FC = () => {
                 otherUsers.map(user => (
                   <Card key={user.id} className="p-3">
                     <div className="flex items-center gap-3">
-                      {user.isInvited ? (
-                        <div className="w-8 h-8 bg-surface1 rounded-full flex items-center justify-center">
-                          <Mail size={16} className="text-subtext1" />
-                        </div>
-                      ) : (
-                        <Avatar user={user} size="sm" />
-                      )}
+                      <Avatar user={user} size="sm" />
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{user.name}</span>
                           {user.isInvited && (
-                            <span className="text-xs bg-yellow/20 text-yellow px-2 py-1 rounded">
+                            <span className="px-2 py-1 text-xs bg-yellow/20 text-yellow rounded-full">
                               Invited
                             </span>
                           )}

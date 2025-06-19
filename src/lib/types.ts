@@ -1,10 +1,10 @@
 export interface User {
   id: string;
   name: string;
+  email?: string;
   avatarUrl?: string; // Optional avatar image URL
   paymentMessage?: string; // Add this: e.g., "Venmo: @alice-smith"
-  email?: string; // Add email for invited users
-  isInvited?: boolean; // Flag to identify invited users who haven't signed up yet
+  isInvited?: boolean; // Flag to indicate if this is an invited user who hasn't signed up yet
 }
 
 export interface AuditEntry {

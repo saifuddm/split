@@ -1,38 +1,42 @@
 import { create } from "zustand";
-import { 
-  getCurrentUserProfile,
-  getAllProfiles,
-  getAllGroups,
-  getAllExpenses,
-  updateUserProfile,
-  inviteUserByEmail,
-  createGroup as createGroupAPI,
-  addExpense as addExpenseAPI,
-  updateExpense as updateExpenseAPI,
-  recordSettlement as recordSettlementAPI,
-  recordSettlementReverse as recordSettlementReverseAPI,
-} from "../lib/supabaseQueries";
 import { generateAuditDetails } from "../lib/utils";
-import type { Group, Expense, User } from "../lib/types";
+import * as supabaseQueries from "../lib/supabaseQueries";
+import type { Group, Expense, User, AuditEntry } from "../lib/types";
 
 interface AppState {
-  editingExpenseId: string | null;
-  preselectedUserIdForExpense: string | null;
+  // Data state
   currentUser: User | null;
   users: User[];
   groups: Group[];
   expenses: Expense[];
-  loading: boolean;
+  
+  // UI state
+  editingExpenseId: string | null;
+  preselectedUserIdForExpense: string | null;
+  isLoading: boolean;
+  error: string | null;
+  
   actions: {
+    // Data loading
     loadInitialData: () => Promise<void>;
+    
+    // User management
+    updateCurrentUser: (updatedData: Partial<User>) => Promise<void>;
+    inviteUserByEmail: (email: string, fullName?: string) => Promise<void>;
+    
+    // Group management
+    createGroup: (groupName: string, memberEmails: string[]) => Promise<void>;
+    
+    // Expense management
     addExpense: (newExpense: Omit<Expense, "id" | "history">) => Promise<void>;
-    createGroup: (groupName: string, members: User[]) => Promise<void>;
     startEditingExpense: (expenseId: string) => void;
     updateExpense: (
       expenseId: string,
       updatedExpenseData: Omit<Expense, "id" | "history">,
     ) => Promise<void>;
     clearEditingExpense: () => void;
+    
+    // Settlement management
     recordSettlement: (
       payee: User,
       settlements: { groupId: string; amount: number }[],
@@ -41,89 +45,118 @@ interface AppState {
       payer: User,
       settlements: { groupId: string; amount: number }[],
     ) => Promise<void>;
+    
+    // UI state management
     setPreselectedUserForExpense: (userId: string | null) => void;
-    updateCurrentUser: (updatedData: Partial<User>) => Promise<void>;
-    inviteUser: (email: string, name?: string) => Promise<void>;
+    clearError: () => void;
   };
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
-  editingExpenseId: null,
-  preselectedUserIdForExpense: null,
+  // Initial state
   currentUser: null,
   users: [],
   groups: [],
   expenses: [],
-  loading: false,
+  editingExpenseId: null,
+  preselectedUserIdForExpense: null,
+  isLoading: false,
+  error: null,
+
   actions: {
     loadInitialData: async () => {
-      set({ loading: true });
       try {
-        const [currentUser, users, groups, expenses] = await Promise.all([
-          getCurrentUserProfile(),
-          getAllProfiles(),
-          getAllGroups(),
-          getAllExpenses(),
+        set({ isLoading: true, error: null });
+        
+        // Load all data in parallel
+        const [currentUser, allUsers, groups, expenses] = await Promise.all([
+          supabaseQueries.getCurrentUserProfile(),
+          supabaseQueries.getAllProfiles(),
+          supabaseQueries.getUserGroups(),
+          supabaseQueries.getUserExpenses(),
         ]);
 
         set({
           currentUser,
-          users,
+          users: allUsers,
           groups,
           expenses,
-          loading: false,
+          isLoading: false,
         });
       } catch (error) {
-        console.error('Error loading initial data:', error);
-        set({ loading: false });
+        console.error('Failed to load initial data:', error);
+        set({ 
+          error: error instanceof Error ? error.message : 'Failed to load data',
+          isLoading: false 
+        });
+      }
+    },
+
+    updateCurrentUser: async (updatedData) => {
+      try {
+        set({ isLoading: true, error: null });
+        
+        await supabaseQueries.updateCurrentUserProfile(updatedData);
+        
+        // Reload data to get fresh state
+        await get().actions.loadInitialData();
+      } catch (error) {
+        console.error('Failed to update user:', error);
+        set({ 
+          error: error instanceof Error ? error.message : 'Failed to update profile',
+          isLoading: false 
+        });
+      }
+    },
+
+    inviteUserByEmail: async (email, fullName) => {
+      try {
+        set({ isLoading: true, error: null });
+        
+        await supabaseQueries.inviteUserByEmail(email, fullName);
+        
+        // Reload data to include the new invited user
+        await get().actions.loadInitialData();
+      } catch (error) {
+        console.error('Failed to invite user:', error);
+        set({ 
+          error: error instanceof Error ? error.message : 'Failed to invite user',
+          isLoading: false 
+        });
+      }
+    },
+
+    createGroup: async (groupName, memberEmails) => {
+      try {
+        set({ isLoading: true, error: null });
+        
+        await supabaseQueries.createGroup(groupName, memberEmails);
+        
+        // Reload data to include the new group
+        await get().actions.loadInitialData();
+      } catch (error) {
+        console.error('Failed to create group:', error);
+        set({ 
+          error: error instanceof Error ? error.message : 'Failed to create group',
+          isLoading: false 
+        });
       }
     },
 
     addExpense: async (newExpenseData) => {
-      const { currentUser } = get();
-      if (!currentUser?.email) return;
-
       try {
-        const success = await addExpenseAPI({
-          description: newExpenseData.description,
-          amount: newExpenseData.amount,
-          paidByEmail: newExpenseData.paidBy.email || currentUser.email,
-          groupId: newExpenseData.groupId,
-          participants: newExpenseData.participants.map(p => ({
-            email: p.user.email || currentUser.email,
-            share: p.share,
-          })),
-          isSettlement: newExpenseData.isSettlement,
-          transactionDate: newExpenseData.date,
-        });
-
-        if (success) {
-          // Reload data to get the latest state
-          await get().actions.loadInitialData();
-        }
-      } catch (error) {
-        console.error('Error adding expense:', error);
-      }
-    },
-
-    createGroup: async (groupName, members) => {
-      const { currentUser } = get();
-      if (!currentUser?.email) return;
-
-      try {
-        // Get member emails, filtering out any without emails
-        const memberEmails = members
-          .map(m => m.email)
-          .filter((email): email is string => Boolean(email));
-
-        const groupId = await createGroupAPI(groupName, memberEmails);
+        set({ isLoading: true, error: null });
         
-        if (groupId) {
-          // Reload data to get the latest state
-          await get().actions.loadInitialData();
-        }
+        await supabaseQueries.addExpense(newExpenseData);
+        
+        // Reload data to include the new expense
+        await get().actions.loadInitialData();
       } catch (error) {
-        console.error('Error creating group:', error);
+        console.error('Failed to add expense:', error);
+        set({ 
+          error: error instanceof Error ? error.message : 'Failed to add expense',
+          isLoading: false 
+        });
       }
     },
 
@@ -132,39 +165,33 @@ export const useAppStore = create<AppState>((set, get) => ({
     },
 
     updateExpense: async (expenseId, updatedData) => {
-      const { currentUser, expenses } = get();
-      if (!currentUser?.email) return;
-
       try {
-        const originalExpense = expenses.find(e => e.id === expenseId);
-        if (!originalExpense) return;
-
-        // Generate audit information
-        const auditInfo = generateAuditDetails(originalExpense, updatedData);
-
-        const success = await updateExpenseAPI(
-          expenseId,
-          {
-            description: updatedData.description,
-            amount: updatedData.amount,
-            paidByEmail: updatedData.paidBy.email || currentUser.email,
-            groupId: updatedData.groupId,
-            participants: updatedData.participants.map(p => ({
-              email: p.user.email || currentUser.email,
-              share: p.share,
-            })),
-            transactionDate: updatedData.date,
-          },
-          auditInfo
-        );
-
-        if (success) {
-          set({ editingExpenseId: null });
-          // Reload data to get the latest state
-          await get().actions.loadInitialData();
+        set({ isLoading: true, error: null });
+        
+        const originalExpense = get().expenses.find(e => e.id === expenseId);
+        if (!originalExpense) {
+          throw new Error('Expense not found');
         }
+
+        // Generate audit details
+        const auditInfo = generateAuditDetails(originalExpense, updatedData);
+        
+        await supabaseQueries.updateExpense(
+          expenseId, 
+          updatedData, 
+          auditInfo.action, 
+          auditInfo.details
+        );
+        
+        // Clear editing state and reload data
+        set({ editingExpenseId: null });
+        await get().actions.loadInitialData();
       } catch (error) {
-        console.error('Error updating expense:', error);
+        console.error('Failed to update expense:', error);
+        set({ 
+          error: error instanceof Error ? error.message : 'Failed to update expense',
+          isLoading: false 
+        });
       }
     },
 
@@ -173,32 +200,36 @@ export const useAppStore = create<AppState>((set, get) => ({
     },
 
     recordSettlement: async (payee, settlements) => {
-      if (!payee.email) return;
-
       try {
-        const success = await recordSettlementAPI(payee.email, settlements);
+        set({ isLoading: true, error: null });
         
-        if (success) {
-          // Reload data to get the latest state
-          await get().actions.loadInitialData();
-        }
+        await supabaseQueries.recordSettlement(payee, settlements);
+        
+        // Reload data to include the settlement
+        await get().actions.loadInitialData();
       } catch (error) {
-        console.error('Error recording settlement:', error);
+        console.error('Failed to record settlement:', error);
+        set({ 
+          error: error instanceof Error ? error.message : 'Failed to record settlement',
+          isLoading: false 
+        });
       }
     },
 
     recordSettlementReverse: async (payer, settlements) => {
-      if (!payer.email) return;
-
       try {
-        const success = await recordSettlementReverseAPI(payer.email, settlements);
+        set({ isLoading: true, error: null });
         
-        if (success) {
-          // Reload data to get the latest state
-          await get().actions.loadInitialData();
-        }
+        await supabaseQueries.recordSettlementReverse(payer, settlements);
+        
+        // Reload data to include the settlement
+        await get().actions.loadInitialData();
       } catch (error) {
-        console.error('Error recording reverse settlement:', error);
+        console.error('Failed to record settlement:', error);
+        set({ 
+          error: error instanceof Error ? error.message : 'Failed to record settlement',
+          isLoading: false 
+        });
       }
     },
 
@@ -206,35 +237,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ preselectedUserIdForExpense: userId });
     },
 
-    updateCurrentUser: async (updatedData) => {
-      try {
-        const success = await updateUserProfile(updatedData);
-        
-        if (success) {
-          // Update local state
-          set(state => ({
-            currentUser: state.currentUser ? { ...state.currentUser, ...updatedData } : null
-          }));
-          
-          // Reload data to ensure consistency
-          await get().actions.loadInitialData();
-        }
-      } catch (error) {
-        console.error('Error updating user profile:', error);
-      }
-    },
-
-    inviteUser: async (email, name) => {
-      try {
-        const success = await inviteUserByEmail(email, name);
-        
-        if (success) {
-          // Reload data to get the latest state including the new invited user
-          await get().actions.loadInitialData();
-        }
-      } catch (error) {
-        console.error('Error inviting user:', error);
-      }
+    clearError: () => {
+      set({ error: null });
     },
   },
 }));
