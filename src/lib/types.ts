@@ -7,6 +7,18 @@ export interface User {
   isInvited?: boolean; // Flag to indicate if this is an invited user who hasn't signed up yet
 }
 
+export interface Contact {
+  id: string;
+  userId: string;
+  contactUserId?: string; // For registered users
+  contactEmail?: string; // For invited users
+  contactName: string;
+  isInvited: boolean;
+  addedAt: string;
+  // Computed field for UI
+  user?: User; // The actual user object if they're registered
+}
+
 export interface AuditEntry {
   actor: User;
   action: string; // e.g., "created", "updated the amount", "changed the description"

@@ -61,7 +61,7 @@ export const AddExpense: React.FC = () => {
   // Check if we're in non-group mode
   const isNonGroupMode = (preselectedUser && availableGroups.length === 0) || expenseType === 'individual';
   
-  // Memoized options for "Paid by" section - filter out invited users
+  // Memoized options for "Paid by" section - only registered users can pay
   const paidByOptions = useMemo(() => {
     if (selectedGroup) {
       return selectedGroup.members.filter(member => !member.isInvited);
@@ -80,7 +80,7 @@ export const AddExpense: React.FC = () => {
     return [currentUser];
   }, [selectedGroup, isNonGroupMode, isEditMode, editingExpense, preselectedUser, currentUser]);
 
-  // Memoized options for participant selection - filter out invited users
+  // Memoized options for participant selection - only registered users can participate
   const availableParticipantsForSelection = useMemo(() => {
     if (selectedGroup) {
       return selectedGroup.members.filter(member => !member.isInvited);

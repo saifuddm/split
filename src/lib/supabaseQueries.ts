@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import type { User, Group, Expense, AuditEntry } from './types';
+import type { User, Group, Expense, AuditEntry, Contact } from './types';
 
 // Helper function to get current user ID
 const getCurrentUserId = async () => {
@@ -17,36 +17,25 @@ const transformProfile = (profile: any): User => ({
   paymentMessage: profile.payment_message,
 });
 
-// Transform invited user to User type (with special ID format)
-const transformInvitedUser = (invitedUser: any): User => ({
-  id: `invited_${invitedUser.id}`, // Special prefix to identify invited users
-  name: invitedUser.full_name || invitedUser.email.split('@')[0],
-  email: invitedUser.email,
-  avatarUrl: undefined,
-  paymentMessage: undefined,
-  isInvited: true,
-});
-
-// Get all profiles (both registered and invited users)
-export const getAllProfiles = async (): Promise<User[]> => {
-  // Get registered users
-  const { data: profiles, error: profilesError } = await supabase
-    .from('profiles')
-    .select('*');
-
-  if (profilesError) throw profilesError;
-
-  // Get invited users
-  const { data: invitedUsers, error: invitedError } = await supabase
-    .from('invited_users')
-    .select('*');
-
-  if (invitedError) throw invitedError;
-
-  const registeredUsers = (profiles || []).map(transformProfile);
-  const pendingUsers = (invitedUsers || []).map(transformInvitedUser);
-
-  return [...registeredUsers, ...pendingUsers];
+// Transform contact to User type for UI compatibility
+const transformContactToUser = (contact: any, userProfiles: User[]): User => {
+  if (contact.contact_user_id) {
+    // Registered user - find their profile
+    const userProfile = userProfiles.find(u => u.id === contact.contact_user_id);
+    if (userProfile) {
+      return userProfile;
+    }
+  }
+  
+  // Invited user or fallback
+  return {
+    id: `contact_${contact.id}`, // Special prefix for contacts
+    name: contact.contact_name,
+    email: contact.contact_email,
+    avatarUrl: undefined,
+    paymentMessage: undefined,
+    isInvited: contact.is_invited,
+  };
 };
 
 // Get current user profile
@@ -88,17 +77,138 @@ export const deleteCurrentUserAccount = async (): Promise<void> => {
   if (error) throw error;
 };
 
-// Invite user by email
-export const inviteUserByEmail = async (email: string, fullName?: string): Promise<void> => {
+// Get user's contacts
+export const getUserContacts = async (): Promise<Contact[]> => {
+  const userId = await getCurrentUserId();
+  
+  const { data: contacts, error } = await supabase
+    .from('contacts')
+    .select('*')
+    .eq('user_id', userId)
+    .order('added_at', { ascending: false });
+
+  if (error) throw error;
+
+  return contacts || [];
+};
+
+// Get all users that the current user can interact with (contacts + group members)
+export const getAllProfiles = async (): Promise<User[]> => {
+  const userId = await getCurrentUserId();
+  
+  // Get user's contacts
+  const contacts = await getUserContacts();
+  
+  // Get all registered user profiles that are either contacts or group members
+  const contactUserIds = contacts
+    .filter(c => c.contact_user_id)
+    .map(c => c.contact_user_id);
+  
+  // Get group member IDs
+  const { data: groupMemberships, error: groupError } = await supabase
+    .from('group_members')
+    .select('group_id')
+    .eq('user_id', userId);
+
+  if (groupError) throw groupError;
+
+  const groupIds = groupMemberships?.map(gm => gm.group_id) || [];
+  
+  let groupMemberIds: string[] = [];
+  if (groupIds.length > 0) {
+    const { data: allGroupMembers, error: membersError } = await supabase
+      .from('group_members')
+      .select('user_id')
+      .in('group_id', groupIds);
+
+    if (membersError) throw membersError;
+    groupMemberIds = allGroupMembers?.map(gm => gm.user_id) || [];
+  }
+
+  // Combine and deduplicate user IDs
+  const allUserIds = [...new Set([...contactUserIds, ...groupMemberIds])];
+  
+  let registeredUsers: User[] = [];
+  if (allUserIds.length > 0) {
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', allUserIds);
+
+    if (profilesError) throw profilesError;
+    registeredUsers = (profiles || []).map(transformProfile);
+  }
+
+  // Transform contacts to users (including invited ones)
+  const contactUsers = contacts.map(contact => transformContactToUser(contact, registeredUsers));
+  
+  // Combine and deduplicate
+  const allUsers = new Map<string, User>();
+  
+  // Add registered users first
+  registeredUsers.forEach(user => allUsers.set(user.id, user));
+  
+  // Add contact users (this will include invited users and won't duplicate registered ones)
+  contactUsers.forEach(user => {
+    if (!allUsers.has(user.id)) {
+      allUsers.set(user.id, user);
+    }
+  });
+
+  return Array.from(allUsers.values());
+};
+
+// Add contact by email
+export const addContactByEmail = async (email: string, fullName?: string): Promise<void> => {
+  const userId = await getCurrentUserId();
+  
+  // First check if this email belongs to an existing user
+  const { data: existingUser, error: userError } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .eq('email', email.toLowerCase().trim())
+    .single();
+
+  if (userError && userError.code !== 'PGRST116') { // PGRST116 is "not found"
+    throw userError;
+  }
+
+  if (existingUser) {
+    // User exists - add as registered contact
+    const { error } = await supabase
+      .from('contacts')
+      .insert({
+        user_id: userId,
+        contact_user_id: existingUser.id,
+        contact_name: fullName?.trim() || existingUser.full_name || 'Unknown User',
+        is_invited: false,
+      });
+
+    if (error) throw error;
+  } else {
+    // User doesn't exist - add as invited contact
+    const { error } = await supabase
+      .from('contacts')
+      .insert({
+        user_id: userId,
+        contact_email: email.toLowerCase().trim(),
+        contact_name: fullName?.trim() || email.split('@')[0],
+        is_invited: true,
+      });
+
+    if (error) throw error;
+  }
+};
+
+// Remove contact
+export const removeContact = async (contactId: string): Promise<void> => {
   const userId = await getCurrentUserId();
   
   const { error } = await supabase
-    .from('invited_users')
-    .insert({
-      email: email.toLowerCase().trim(),
-      full_name: fullName?.trim(),
-      invited_by: userId,
-    });
+    .from('contacts')
+    .delete()
+    .eq('id', contactId)
+    .eq('user_id', userId);
 
   if (error) throw error;
 };
@@ -139,9 +249,21 @@ export const getUserGroups = async (): Promise<Group[]> => {
 
   if (membersError) throw membersError;
 
-  // Get all user profiles and invited users
-  const allUsers = await getAllProfiles();
-  const userMap = new Map(allUsers.map(user => [user.id, user]));
+  // Get all user profiles for group members
+  const memberIds = [...new Set(allMemberships?.map(m => m.user_id) || [])];
+  
+  let userProfiles: User[] = [];
+  if (memberIds.length > 0) {
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', memberIds);
+
+    if (profilesError) throw profilesError;
+    userProfiles = (profiles || []).map(transformProfile);
+  }
+
+  const userMap = new Map(userProfiles.map(user => [user.id, user]));
 
   // Build groups with members
   const groups: Group[] = [];
@@ -155,11 +277,7 @@ export const getUserGroups = async (): Promise<Group[]> => {
 
     const groupMembers = (allMemberships || [])
       .filter(m => m.group_id === groupId)
-      .map(m => {
-        // Handle both regular users and invited users
-        const userId = m.user_id;
-        return userMap.get(userId);
-      })
+      .map(m => userMap.get(m.user_id))
       .filter(Boolean) as User[];
 
     groups.push({
@@ -190,9 +308,15 @@ export const createGroup = async (name: string, memberEmails: string[]): Promise
 
   const groupId = group.id;
 
-  // Get all users (registered and invited)
-  const allUsers = await getAllProfiles();
-  const usersByEmail = new Map(allUsers.map(user => [user.email, user]));
+  // Get all user profiles for the emails
+  const { data: existingUsers, error: usersError } = await supabase
+    .from('profiles')
+    .select('id, email')
+    .in('email', memberEmails.map(email => email.toLowerCase().trim()));
+
+  if (usersError) throw usersError;
+
+  const usersByEmail = new Map((existingUsers || []).map(user => [user.email, user.id]));
 
   // Prepare member insertions
   const memberInserts = [];
@@ -203,15 +327,14 @@ export const createGroup = async (name: string, memberEmails: string[]): Promise
     user_id: userId,
   });
 
-  // Add other members
+  // Add other members (only registered users can be in groups)
   for (const email of memberEmails) {
-    const user = usersByEmail.get(email.toLowerCase().trim());
-    if (user) {
-      // Extract the actual user ID (remove invited_ prefix if present)
-      const actualUserId = user.id.startsWith('invited_') ? user.id.replace('invited_', '') : user.id;
+    const normalizedEmail = email.toLowerCase().trim();
+    const userId = usersByEmail.get(normalizedEmail);
+    if (userId) {
       memberInserts.push({
         group_id: groupId,
-        user_id: actualUserId,
+        user_id: userId,
       });
     }
   }
@@ -324,15 +447,18 @@ const transformExpense = (expense: any, userMap: Map<string, User>): Expense => 
 export const addExpense = async (expenseData: Omit<Expense, 'id' | 'history'>): Promise<void> => {
   const userId = await getCurrentUserId();
   
+  // Extract actual user ID (remove contact_ prefix if present)
+  const getActualUserId = (id: string) => {
+    return id.startsWith('contact_') ? id : id;
+  };
+
   // Insert the expense
   const { data: expense, error: expenseError } = await supabase
     .from('expenses')
     .insert({
       description: expenseData.description,
       amount: expenseData.amount,
-      paid_by_id: expenseData.paidBy.id.startsWith('invited_') 
-        ? expenseData.paidBy.id.replace('invited_', '') 
-        : expenseData.paidBy.id,
+      paid_by_id: getActualUserId(expenseData.paidBy.id),
       group_id: expenseData.groupId || null,
       is_settlement: expenseData.isSettlement || false,
       transaction_date: expenseData.date,
@@ -347,9 +473,7 @@ export const addExpense = async (expenseData: Omit<Expense, 'id' | 'history'>): 
   // Insert participants
   const participantInserts = expenseData.participants.map(p => ({
     expense_id: expenseId,
-    user_id: p.user.id.startsWith('invited_') 
-      ? p.user.id.replace('invited_', '') 
-      : p.user.id,
+    user_id: getActualUserId(p.user.id),
     share: p.share,
   }));
 
@@ -380,15 +504,18 @@ export const updateExpense = async (
 ): Promise<void> => {
   const userId = await getCurrentUserId();
   
+  // Extract actual user ID (remove contact_ prefix if present)
+  const getActualUserId = (id: string) => {
+    return id.startsWith('contact_') ? id : id;
+  };
+  
   // Update the expense
   const { error: expenseError } = await supabase
     .from('expenses')
     .update({
       description: expenseData.description,
       amount: expenseData.amount,
-      paid_by_id: expenseData.paidBy.id.startsWith('invited_') 
-        ? expenseData.paidBy.id.replace('invited_', '') 
-        : expenseData.paidBy.id,
+      paid_by_id: getActualUserId(expenseData.paidBy.id),
       group_id: expenseData.groupId || null,
       transaction_date: expenseData.date,
     })
@@ -407,9 +534,7 @@ export const updateExpense = async (
   // Insert new participants
   const participantInserts = expenseData.participants.map(p => ({
     expense_id: expenseId,
-    user_id: p.user.id.startsWith('invited_') 
-      ? p.user.id.replace('invited_', '') 
-      : p.user.id,
+    user_id: getActualUserId(p.user.id),
     share: p.share,
   }));
 

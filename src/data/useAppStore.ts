@@ -1,12 +1,13 @@
 import { create } from "zustand";
 import { generateAuditDetails } from "../lib/utils";
 import * as supabaseQueries from "../lib/supabaseQueries";
-import type { Group, Expense, User } from "../lib/types";
+import type { Group, Expense, User, Contact } from "../lib/types";
 
 interface AppState {
   // Data state
   currentUser: User | null;
   users: User[];
+  contacts: Contact[];
   groups: Group[];
   expenses: Expense[];
   
@@ -22,8 +23,11 @@ interface AppState {
     
     // User management
     updateCurrentUser: (updatedData: Partial<User>) => Promise<void>;
-    inviteUserByEmail: (email: string, fullName?: string) => Promise<void>;
     deleteAccount: () => Promise<void>;
+    
+    // Contact management
+    addContactByEmail: (email: string, fullName?: string) => Promise<void>;
+    removeContact: (contactId: string) => Promise<void>;
     
     // Group management
     createGroup: (groupName: string, memberEmails: string[]) => Promise<void>;
@@ -57,6 +61,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Initial state
   currentUser: null,
   users: [],
+  contacts: [],
   groups: [],
   expenses: [],
   editingExpenseId: null,
@@ -70,9 +75,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ isLoading: true, error: null });
         
         // Load all data in parallel
-        const [currentUser, allUsers, groups, expenses] = await Promise.all([
+        const [currentUser, allUsers, contacts, groups, expenses] = await Promise.all([
           supabaseQueries.getCurrentUserProfile(),
           supabaseQueries.getAllProfiles(),
+          supabaseQueries.getUserContacts(),
           supabaseQueries.getUserGroups(),
           supabaseQueries.getUserExpenses(),
         ]);
@@ -80,6 +86,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({
           currentUser,
           users: allUsers,
+          contacts,
           groups,
           expenses,
           isLoading: false,
@@ -110,23 +117,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     },
 
-    inviteUserByEmail: async (email, fullName) => {
-      try {
-        set({ isLoading: true, error: null });
-        
-        await supabaseQueries.inviteUserByEmail(email, fullName);
-        
-        // Reload data to include the new invited user
-        await get().actions.loadInitialData();
-      } catch (error) {
-        console.error('Failed to invite user:', error);
-        set({ 
-          error: error instanceof Error ? error.message : 'Failed to invite user',
-          isLoading: false 
-        });
-      }
-    },
-
     deleteAccount: async () => {
       try {
         set({ isLoading: true, error: null });
@@ -137,6 +127,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({
           currentUser: null,
           users: [],
+          contacts: [],
           groups: [],
           expenses: [],
           editingExpenseId: null,
@@ -151,6 +142,40 @@ export const useAppStore = create<AppState>((set, get) => ({
           isLoading: false 
         });
         throw error; // Re-throw so the UI can handle it
+      }
+    },
+
+    addContactByEmail: async (email, fullName) => {
+      try {
+        set({ isLoading: true, error: null });
+        
+        await supabaseQueries.addContactByEmail(email, fullName);
+        
+        // Reload data to include the new contact
+        await get().actions.loadInitialData();
+      } catch (error) {
+        console.error('Failed to add contact:', error);
+        set({ 
+          error: error instanceof Error ? error.message : 'Failed to add contact',
+          isLoading: false 
+        });
+      }
+    },
+
+    removeContact: async (contactId) => {
+      try {
+        set({ isLoading: true, error: null });
+        
+        await supabaseQueries.removeContact(contactId);
+        
+        // Reload data to reflect the removal
+        await get().actions.loadInitialData();
+      } catch (error) {
+        console.error('Failed to remove contact:', error);
+        set({ 
+          error: error instanceof Error ? error.message : 'Failed to remove contact',
+          isLoading: false 
+        });
       }
     },
 

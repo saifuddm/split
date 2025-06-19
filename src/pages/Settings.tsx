@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, UserPlus, Mail, User as UserIcon, LogOut, Trash2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, UserPlus, Mail, User as UserIcon, LogOut, Trash2, AlertTriangle, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../data/useAppStore';
 import { useStore } from '../data/store';
@@ -11,20 +11,17 @@ import { Card } from '../components/Card';
 
 export const Settings: React.FC = () => {
   const navigate = useNavigate();
-  const { currentUser, users, isLoading, error, actions } = useAppStore();
+  const { currentUser, contacts, isLoading, error, actions } = useAppStore();
   const { isDark, toggleDarkMode } = useStore();
   const { signOut } = useAuth();
   const [paymentMessage, setPaymentMessage] = useState(currentUser?.paymentMessage || '');
-  const [isInviting, setIsInviting] = useState(false);
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserName, setNewUserName] = useState('');
+  const [isAddingContact, setIsAddingContact] = useState(false);
+  const [newContactEmail, setNewContactEmail] = useState('');
+  const [newContactName, setNewContactName] = useState('');
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
-
-  // Get all users except the current user
-  const otherUsers = users.filter(user => user.id !== currentUser?.id);
 
   const handleSavePaymentMessage = async () => {
     if (!currentUser) return;
@@ -36,23 +33,31 @@ export const Settings: React.FC = () => {
     }
   };
 
-  const handleInviteUser = async () => {
-    if (!newUserEmail.trim()) return;
+  const handleAddContact = async () => {
+    if (!newContactEmail.trim()) return;
     
     try {
-      await actions.inviteUserByEmail(newUserEmail.trim(), newUserName.trim() || undefined);
-      setNewUserEmail('');
-      setNewUserName('');
-      setIsInviting(false);
+      await actions.addContactByEmail(newContactEmail.trim(), newContactName.trim() || undefined);
+      setNewContactEmail('');
+      setNewContactName('');
+      setIsAddingContact(false);
     } catch (err) {
-      console.error('Failed to invite user:', err);
+      console.error('Failed to add contact:', err);
     }
   };
 
-  const handleCancelInvite = () => {
-    setNewUserEmail('');
-    setNewUserName('');
-    setIsInviting(false);
+  const handleRemoveContact = async (contactId: string) => {
+    try {
+      await actions.removeContact(contactId);
+    } catch (err) {
+      console.error('Failed to remove contact:', err);
+    }
+  };
+
+  const handleCancelAddContact = () => {
+    setNewContactEmail('');
+    setNewContactName('');
+    setIsAddingContact(false);
   };
 
   const handleSignOut = async () => {
@@ -178,36 +183,40 @@ export const Settings: React.FC = () => {
             </div>
           </div>
 
-          {/* All Users Section */}
+          {/* Contacts Section */}
           <div className="bg-mantle rounded-lg p-4 border border-surface0">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">All Users</h2>
+              <h2 className="text-lg font-semibold">My Contacts</h2>
               <Button
-                onClick={() => setIsInviting(true)}
+                onClick={() => setIsAddingContact(true)}
                 size="sm"
                 className="flex items-center gap-2"
                 disabled={isLoading}
               >
                 <UserPlus size={16} />
-                Invite User
+                Add Contact
               </Button>
             </div>
 
-            {/* Invite User Form */}
-            {isInviting && (
+            <p className="text-xs text-subtext1 mb-3">
+              Add people to create individual expenses with them. Group members are automatically available for group expenses.
+            </p>
+
+            {/* Add Contact Form */}
+            {isAddingContact && (
               <div className="mb-4 p-3 bg-surface0 rounded-lg">
                 <div className="space-y-3">
                   <div>
-                    <label htmlFor="newUserEmail" className="block text-sm font-medium mb-1">
+                    <label htmlFor="newContactEmail" className="block text-sm font-medium mb-1">
                       Email Address *
                     </label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-subtext1" size={16} />
                       <input
-                        id="newUserEmail"
+                        id="newContactEmail"
                         type="email"
-                        value={newUserEmail}
-                        onChange={(e) => setNewUserEmail(e.target.value)}
+                        value={newContactEmail}
+                        onChange={(e) => setNewContactEmail(e.target.value)}
                         placeholder="user@example.com"
                         className="w-full pl-10 pr-3 py-2 bg-mantle border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
                         disabled={isLoading}
@@ -217,16 +226,16 @@ export const Settings: React.FC = () => {
                   </div>
                   
                   <div>
-                    <label htmlFor="newUserName" className="block text-sm font-medium mb-1">
+                    <label htmlFor="newContactName" className="block text-sm font-medium mb-1">
                       Display Name (Optional)
                     </label>
                     <div className="relative">
                       <UserIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-subtext1" size={16} />
                       <input
-                        id="newUserName"
+                        id="newContactName"
                         type="text"
-                        value={newUserName}
-                        onChange={(e) => setNewUserName(e.target.value)}
+                        value={newContactName}
+                        onChange={(e) => setNewContactName(e.target.value)}
                         placeholder="John Doe"
                         className="w-full pl-10 pr-3 py-2 bg-mantle border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
                         disabled={isLoading}
@@ -239,15 +248,15 @@ export const Settings: React.FC = () => {
                   
                   <div className="flex gap-2">
                     <Button
-                      onClick={handleInviteUser}
+                      onClick={handleAddContact}
                       size="sm"
-                      disabled={isLoading || !newUserEmail.trim()}
-                      className={!newUserEmail.trim() ? 'opacity-50 cursor-not-allowed' : ''}
+                      disabled={isLoading || !newContactEmail.trim()}
+                      className={!newContactEmail.trim() ? 'opacity-50 cursor-not-allowed' : ''}
                     >
-                      {isLoading ? 'Inviting...' : 'Send Invite'}
+                      {isLoading ? 'Adding...' : 'Add Contact'}
                     </Button>
                     <Button
-                      onClick={handleCancelInvite}
+                      onClick={handleCancelAddContact}
                       variant="secondary"
                       size="sm"
                       disabled={isLoading}
@@ -259,33 +268,45 @@ export const Settings: React.FC = () => {
               </div>
             )}
 
-            {/* Users List */}
+            {/* Contacts List */}
             <div className="space-y-2">
-              {otherUsers.length === 0 ? (
+              {contacts.length === 0 ? (
                 <p className="text-center text-subtext1 py-4">
-                  No other users yet. Invite someone to get started!
+                  No contacts yet. Add someone to get started!
                 </p>
               ) : (
-                otherUsers.map(user => (
-                  <Card key={user.id} className="p-3">
+                contacts.map(contact => (
+                  <Card key={contact.id} className="p-3">
                     <div className="flex items-center gap-3">
-                      <Avatar user={user} size="sm" />
+                      <Avatar 
+                        user={{
+                          id: contact.contactUserId || contact.id,
+                          name: contact.contactName,
+                          email: contact.contactEmail,
+                        }} 
+                        size="sm" 
+                      />
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{user.name}</span>
-                          {user.isInvited && (
+                          <span className="font-medium">{contact.contactName}</span>
+                          {contact.isInvited && (
                             <span className="px-2 py-1 text-xs bg-yellow/20 text-yellow rounded-full">
                               Invited
                             </span>
                           )}
                         </div>
-                        {user.email && (
-                          <p className="text-xs text-subtext1">{user.email}</p>
-                        )}
-                        {user.paymentMessage && (
-                          <p className="text-xs text-subtext1">{user.paymentMessage}</p>
+                        {contact.contactEmail && (
+                          <p className="text-xs text-subtext1">{contact.contactEmail}</p>
                         )}
                       </div>
+                      <button
+                        onClick={() => handleRemoveContact(contact.id)}
+                        className="text-subtext1 hover:text-red transition-colors p-1"
+                        disabled={isLoading}
+                        title="Remove contact"
+                      >
+                        <X size={16} />
+                      </button>
                     </div>
                   </Card>
                 ))
@@ -385,6 +406,7 @@ export const Settings: React.FC = () => {
                   <li>Your participation in group expenses</li>
                   <li>All settlement history</li>
                   <li>Your membership in all groups</li>
+                  <li>All your contacts</li>
                 </ul>
               </div>
 
