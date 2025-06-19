@@ -17,28 +17,16 @@ const transformProfile = (profile: any): User => ({
   paymentMessage: profile.payment_message,
 });
 
-// Transform contact to User type for UI compatibility
-const transformContactToUser = (contact: any, userProfiles: User[]): User => {
-  if (contact.contactUserId) {
-    // Registered user - find their profile
-    const userProfile = userProfiles.find(u => u.id === contact.contactUserId);
-    if (userProfile) {
-      return userProfile;
-    }
-  }
-  
-  // Invited user or fallback - ensure name is always a string
-  const contactName = contact.contactName || contact.contactEmail || 'Unknown User';
-  
-  return {
-    id: `contact_${contact.id}`, // Special prefix for contacts
-    name: contactName,
-    email: contact.contactEmail,
-    avatarUrl: undefined,
-    paymentMessage: undefined,
-    isInvited: contact.isInvited,
-  };
-};
+// Transform contact to Contact type
+const transformContact = (contact: any): Contact => ({
+  id: contact.id,
+  userId: contact.user_id,
+  contactUserId: contact.contact_user_id,
+  contactEmail: contact.contact_email,
+  contactName: contact.contact_name,
+  isInvited: contact.is_invited,
+  addedAt: contact.added_at,
+});
 
 // Get current user profile
 export const getCurrentUserProfile = async (): Promise<User> => {
@@ -91,7 +79,7 @@ export const getUserContacts = async (): Promise<Contact[]> => {
 
   if (error) throw error;
 
-  return contacts || [];
+  return (contacts || []).map(transformContact);
 };
 
 // Get all users that the current user can interact with (contacts + group members)
@@ -104,7 +92,7 @@ export const getAllProfiles = async (): Promise<User[]> => {
   // Get all registered user profiles that are either contacts or group members
   const contactUserIds = contacts
     .filter(c => c.contactUserId)
-    .map(c => c.contactUserId);
+    .map(c => c.contactUserId!);
   
   // Get group member IDs
   const { data: groupMemberships, error: groupError } = await supabase
@@ -141,36 +129,19 @@ export const getAllProfiles = async (): Promise<User[]> => {
     registeredUsers = (profiles || []).map(transformProfile);
   }
 
-  // Transform contacts to users (including invited ones)
-  const contactUsers = contacts.map(contact => transformContactToUser(contact, registeredUsers));
-  
-  // Combine and deduplicate
-  const allUsers = new Map<string, User>();
-  
-  // Add registered users first
-  registeredUsers.forEach(user => allUsers.set(user.id, user));
-  
-  // Add contact users (this will include invited users and won't duplicate registered ones)
-  contactUsers.forEach(user => {
-    if (!allUsers.has(user.id)) {
-      allUsers.set(user.id, user);
-    }
-  });
-
-  return Array.from(allUsers.values());
+  return registeredUsers;
 };
 
-// Add contact by email
+// Add contact by email - now uses Supabase Auth Admin API for invitations
 export const addContactByEmail = async (email: string, fullName?: string): Promise<void> => {
   const userId = await getCurrentUserId();
   
   // First check if this email belongs to an existing user
-  // Note: This query may return a 406 error if no user is found, which is expected behavior
   const { data: existingUser, error: userError } = await supabase
     .from('profiles')
-    .select('id, full_name')
+    .select('id, full_name, email')
     .eq('email', email.toLowerCase().trim())
-    .maybeSingle(); // Use maybeSingle() instead of single() to avoid throwing on no results
+    .maybeSingle();
 
   // Only throw if it's a real error, not just "no user found"
   if (userError && userError.code !== 'PGRST116') {
@@ -190,10 +161,27 @@ export const addContactByEmail = async (email: string, fullName?: string): Promi
 
     if (error) throw error;
   } else {
-    // User doesn't exist - add as invited contact
+    // User doesn't exist - invite them using Supabase Auth Admin API and add as contact
     const contactName = fullName?.trim() || email.split('@')[0] || 'Unknown User';
     
-    const { error } = await supabase
+    // Use Supabase Auth Admin API to invite the user
+    const { data: inviteData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
+      email.toLowerCase().trim(),
+      {
+        data: {
+          full_name: contactName,
+        },
+        redirectTo: `${window.location.origin}/dashboard`, // Redirect to dashboard after signup
+      }
+    );
+
+    if (inviteError) {
+      // If invitation fails, still add as contact but mark as invited
+      console.warn('Failed to send invitation email:', inviteError);
+    }
+
+    // Add as invited contact regardless of invitation email success
+    const { error: contactError } = await supabase
       .from('contacts')
       .insert({
         user_id: userId,
@@ -202,7 +190,7 @@ export const addContactByEmail = async (email: string, fullName?: string): Promi
         is_invited: true,
       });
 
-    if (error) throw error;
+    if (contactError) throw contactError;
   }
 };
 

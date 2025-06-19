@@ -11,7 +11,7 @@ import { Card } from '../components/Card';
 
 export const Settings: React.FC = () => {
   const navigate = useNavigate();
-  const { currentUser, contacts, isLoading, error, actions } = useAppStore();
+  const { currentUser, contacts, users, isLoading, error, actions } = useAppStore();
   const { isDark, toggleDarkMode } = useStore();
   const { signOut } = useAuth();
   const [paymentMessage, setPaymentMessage] = useState(currentUser?.paymentMessage || '');
@@ -275,41 +275,51 @@ export const Settings: React.FC = () => {
                   No contacts yet. Add someone to get started!
                 </p>
               ) : (
-                contacts.map(contact => (
-                  <Card key={contact.id} className="p-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar 
-                        user={{
-                          id: contact.contactUserId || contact.id,
-                          name: contact.contactName,
-                          email: contact.contactEmail,
-                        }} 
-                        size="sm" 
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{contact.contactName}</span>
-                          {contact.isInvited && (
-                            <span className="px-2 py-1 text-xs bg-yellow/20 text-yellow rounded-full">
-                              Invited
-                            </span>
+                contacts.map(contact => {
+                  // Find the actual user profile for registered contacts
+                  const userProfile = contact.contactUserId ? 
+                    users.find(u => u.id === contact.contactUserId) : null;
+                  
+                  const displayUser = userProfile || {
+                    id: contact.id,
+                    name: contact.contactName,
+                    email: contact.contactEmail,
+                  };
+
+                  return (
+                    <Card key={contact.id} className="p-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar user={displayUser} size="sm" />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{contact.contactName}</span>
+                            {contact.isInvited && (
+                              <span className="px-2 py-1 text-xs bg-yellow/20 text-yellow rounded-full">
+                                Invited
+                              </span>
+                            )}
+                          </div>
+                          {(contact.contactEmail || userProfile?.email) && (
+                            <p className="text-xs text-subtext1">
+                              {contact.contactEmail || userProfile?.email}
+                            </p>
+                          )}
+                          {userProfile?.paymentMessage && (
+                            <p className="text-xs text-subtext1">{userProfile.paymentMessage}</p>
                           )}
                         </div>
-                        {contact.contactEmail && (
-                          <p className="text-xs text-subtext1">{contact.contactEmail}</p>
-                        )}
+                        <button
+                          onClick={() => handleRemoveContact(contact.id)}
+                          className="text-subtext1 hover:text-red transition-colors p-1"
+                          disabled={isLoading}
+                          title="Remove contact"
+                        >
+                          <X size={16} />
+                        </button>
                       </div>
-                      <button
-                        onClick={() => handleRemoveContact(contact.id)}
-                        className="text-subtext1 hover:text-red transition-colors p-1"
-                        disabled={isLoading}
-                        title="Remove contact"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  </Card>
-                ))
+                    </Card>
+                  );
+                })
               )}
             </div>
           </div>

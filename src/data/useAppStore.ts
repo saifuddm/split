@@ -273,7 +273,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       try {
         set({ isLoading: true, error: null });
         
-        await supabaseQueries.recordSettlementReverse(payer, settlements);
+        await supabaseQueries.recordSettlement(payer, settlements);
         
         // Reload data to include the settlement
         await get().actions.loadInitialData();

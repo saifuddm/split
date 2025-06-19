@@ -10,7 +10,7 @@ import { Button } from "../components/Button";
 import { Avatar } from "../components/Avatar";
 
 export const Dashboard: React.FC = () => {
-  const { currentUser, contacts, groups, expenses, actions } = useAppStore();
+  const { currentUser, contacts, users, groups, expenses, actions } = useAppStore();
   const navigate = useNavigate();
 
   // Early return if currentUser is null
@@ -22,18 +22,26 @@ export const Dashboard: React.FC = () => {
     );
   }
 
-  // Get all users from contacts for Quick Add section
-  const contactUsers = contacts.map(contact => ({
-    id: contact.contactUserId || `contact_${contact.id}`,
-    name: contact.contactName,
-    email: contact.contactEmail,
-    isInvited: contact.isInvited,
-  }));
+  // Get contact users for Quick Add section - only show registered users
+  const contactUsers = contacts
+    .filter(contact => !contact.isInvited && contact.contactUserId) // Only registered contacts
+    .map(contact => {
+      // Find the actual user profile
+      const userProfile = users.find(u => u.id === contact.contactUserId);
+      return userProfile ? {
+        id: userProfile.id,
+        name: userProfile.name,
+        email: userProfile.email,
+        avatarUrl: userProfile.avatarUrl,
+        paymentMessage: userProfile.paymentMessage,
+      } : null;
+    })
+    .filter(Boolean) as any[];
 
   // Calculate overall balances using the utility function (only for registered users)
   const overallBalances: { [userId: string]: number } = {};
   contactUsers.forEach(user => {
-    if (user.id !== currentUser.id && !user.isInvited) {
+    if (user.id !== currentUser.id) {
       overallBalances[user.id] = calculateNetBalanceBetweenTwoUsers(
         currentUser,
         user,
@@ -46,7 +54,7 @@ export const Dashboard: React.FC = () => {
   // Calculate individual balances (non-group only) for the summary card (only for registered users)
   const individualBalances: { [userId: string]: number } = {};
   contactUsers.forEach(user => {
-    if (user.id !== currentUser.id && !user.isInvited) {
+    if (user.id !== currentUser.id) {
       individualBalances[user.id] = calculateNetBalanceBetweenTwoUsers(
         currentUser,
         user,
@@ -86,11 +94,11 @@ export const Dashboard: React.FC = () => {
 
   // Get users with individual balances for the summary (only registered users)
   const usersWithIndividualDebtsToYou = contactUsers.filter(
-    (user) => user.id !== currentUser.id && !user.isInvited && individualBalances[user.id] > 0.01,
+    (user) => user.id !== currentUser.id && individualBalances[user.id] > 0.01,
   );
 
   const usersYouOweIndividually = contactUsers.filter(
-    (user) => user.id !== currentUser.id && !user.isInvited && individualBalances[user.id] < -0.01,
+    (user) => user.id !== currentUser.id && individualBalances[user.id] < -0.01,
   );
 
   return (
@@ -138,18 +146,10 @@ export const Dashboard: React.FC = () => {
                   onClick={() => handleUserCardClick(user.id)}
                   className="hover:bg-surface0 flex flex-shrink-0 cursor-pointer flex-col items-center gap-2 rounded-lg p-2 transition-colors"
                 >
-                  <div className="relative">
-                    <Avatar user={user} size="md" />
-                    {user.isInvited && (
-                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow rounded-full border-2 border-base"></div>
-                    )}
-                  </div>
+                  <Avatar user={user} size="md" />
                   <span className="text-center text-sm font-medium whitespace-nowrap">
                     {user.name}
                   </span>
-                  {user.isInvited && (
-                    <span className="text-xs text-yellow">Invited</span>
-                  )}
                 </div>
               ))}
             </div>
