@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
+import { useAppStore } from '../data/useAppStore';
+import { useAuth } from '../context/AuthContext';
 import { Dashboard } from '../pages/Dashboard';
 import { GroupDetail } from '../pages/GroupDetail';
 import { AddExpense } from '../pages/AddExpense';
@@ -10,6 +12,28 @@ import { ActivityFeed } from '../pages/ActivityFeed';
 import { IndividualExpensesPage } from '../pages/IndividualExpensesPage';
 
 export const MainAppLayout: React.FC = () => {
+  const { user } = useAuth();
+  const { loading, actions } = useAppStore();
+
+  // Load initial data when the user is authenticated
+  useEffect(() => {
+    if (user) {
+      actions.loadInitialData();
+    }
+  }, [user, actions]);
+
+  // Show loading spinner while data is being fetched
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-base text-text flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-blue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-subtext1">Loading your data...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-base text-text">
       <Routes>

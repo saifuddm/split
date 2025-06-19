@@ -1,200 +1,240 @@
 import { create } from "zustand";
-import {
-  currentUser as initialCurrentUser,
-  groups as initialGroups,
-  expenses as initialExpenses,
-  users as initialUsers,
-} from "../lib/mockdata";
+import { 
+  getCurrentUserProfile,
+  getAllProfiles,
+  getAllGroups,
+  getAllExpenses,
+  updateUserProfile,
+  inviteUserByEmail,
+  createGroup as createGroupAPI,
+  addExpense as addExpenseAPI,
+  updateExpense as updateExpenseAPI,
+  recordSettlement as recordSettlementAPI,
+  recordSettlementReverse as recordSettlementReverseAPI,
+} from "../lib/supabaseQueries";
 import { generateAuditDetails } from "../lib/utils";
-import type { Group, Expense, User, AuditEntry } from "../lib/types";
+import type { Group, Expense, User } from "../lib/types";
 
 interface AppState {
   editingExpenseId: string | null;
   preselectedUserIdForExpense: string | null;
-  currentUser: User;
+  currentUser: User | null;
   users: User[];
   groups: Group[];
   expenses: Expense[];
+  loading: boolean;
   actions: {
-    addExpense: (newExpense: Omit<Expense, "id" | "history">) => void;
-    createGroup: (groupName: string, members: User[]) => void;
+    loadInitialData: () => Promise<void>;
+    addExpense: (newExpense: Omit<Expense, "id" | "history">) => Promise<void>;
+    createGroup: (groupName: string, members: User[]) => Promise<void>;
     startEditingExpense: (expenseId: string) => void;
     updateExpense: (
       expenseId: string,
       updatedExpenseData: Omit<Expense, "id" | "history">,
-    ) => void;
+    ) => Promise<void>;
     clearEditingExpense: () => void;
     recordSettlement: (
       payee: User,
       settlements: { groupId: string; amount: number }[],
-    ) => void;
+    ) => Promise<void>;
     recordSettlementReverse: (
       payer: User,
       settlements: { groupId: string; amount: number }[],
-    ) => void;
+    ) => Promise<void>;
     setPreselectedUserForExpense: (userId: string | null) => void;
-    updateCurrentUser: (updatedData: Partial<User>) => void;
-    addUser: (name: string) => void;
+    updateCurrentUser: (updatedData: Partial<User>) => Promise<void>;
+    inviteUser: (email: string, name?: string) => Promise<void>;
   };
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
   editingExpenseId: null,
   preselectedUserIdForExpense: null,
-  currentUser: initialCurrentUser,
-  users: initialUsers,
-  groups: initialGroups,
-  expenses: initialExpenses,
+  currentUser: null,
+  users: [],
+  groups: [],
+  expenses: [],
+  loading: false,
   actions: {
-    addExpense: (newExpenseData) => {
-      const newExpense: Expense = {
-        ...newExpenseData,
-        id: `exp-${Date.now()}`,
-        history: [
-          {
-            actor: get().currentUser,
-            action: "created this expense",
-            timestamp: new Date().toISOString(),
-          },
-        ],
-      };
-      set((state) => ({
-        expenses: [...state.expenses, newExpense],
-      }));
+    loadInitialData: async () => {
+      set({ loading: true });
+      try {
+        const [currentUser, users, groups, expenses] = await Promise.all([
+          getCurrentUserProfile(),
+          getAllProfiles(),
+          getAllGroups(),
+          getAllExpenses(),
+        ]);
+
+        set({
+          currentUser,
+          users,
+          groups,
+          expenses,
+          loading: false,
+        });
+      } catch (error) {
+        console.error('Error loading initial data:', error);
+        set({ loading: false });
+      }
     },
-    createGroup: (groupName, members) => {
-      const newGroup: Group = {
-        id: `group-${Date.now()}`,
-        name: groupName,
-        // Ensure the current user is always included
-        members: [get().currentUser, ...members],
-      };
-      set((state) => ({
-        groups: [...state.groups, newGroup],
-      }));
+
+    addExpense: async (newExpenseData) => {
+      const { currentUser } = get();
+      if (!currentUser?.email) return;
+
+      try {
+        const success = await addExpenseAPI({
+          description: newExpenseData.description,
+          amount: newExpenseData.amount,
+          paidByEmail: newExpenseData.paidBy.email || currentUser.email,
+          groupId: newExpenseData.groupId,
+          participants: newExpenseData.participants.map(p => ({
+            email: p.user.email || currentUser.email,
+            share: p.share,
+          })),
+          isSettlement: newExpenseData.isSettlement,
+          transactionDate: newExpenseData.date,
+        });
+
+        if (success) {
+          // Reload data to get the latest state
+          await get().actions.loadInitialData();
+        }
+      } catch (error) {
+        console.error('Error adding expense:', error);
+      }
     },
+
+    createGroup: async (groupName, members) => {
+      const { currentUser } = get();
+      if (!currentUser?.email) return;
+
+      try {
+        // Get member emails, filtering out any without emails
+        const memberEmails = members
+          .map(m => m.email)
+          .filter((email): email is string => Boolean(email));
+
+        const groupId = await createGroupAPI(groupName, memberEmails);
+        
+        if (groupId) {
+          // Reload data to get the latest state
+          await get().actions.loadInitialData();
+        }
+      } catch (error) {
+        console.error('Error creating group:', error);
+      }
+    },
+
     startEditingExpense: (expenseId) => {
       set({ editingExpenseId: expenseId });
     },
-    updateExpense: (expenseId, updatedData) => {
-      const originalExpense = get().expenses.find(e => e.id === expenseId);
-      if (!originalExpense) return;
 
-      // Generate the detailed action and details object
-      const auditInfo = generateAuditDetails(originalExpense, updatedData);
+    updateExpense: async (expenseId, updatedData) => {
+      const { currentUser, expenses } = get();
+      if (!currentUser?.email) return;
 
-      const newHistoryEntry: AuditEntry = {
-        actor: get().currentUser,
-        action: auditInfo.action,
-        details: auditInfo.details, // Assign the new details string
-        timestamp: new Date().toISOString(),
-      };
+      try {
+        const originalExpense = expenses.find(e => e.id === expenseId);
+        if (!originalExpense) return;
 
-      const updatedExpense: Expense = {
-        ...originalExpense,
-        ...updatedData,
-        history: [...(originalExpense.history || []), newHistoryEntry],
-      };
+        // Generate audit information
+        const auditInfo = generateAuditDetails(originalExpense, updatedData);
 
-      set((state) => ({
-        expenses: state.expenses.map(e =>
-          e.id === expenseId ? updatedExpense : e,
-        ),
-        editingExpenseId: null,
-      }));
+        const success = await updateExpenseAPI(
+          expenseId,
+          {
+            description: updatedData.description,
+            amount: updatedData.amount,
+            paidByEmail: updatedData.paidBy.email || currentUser.email,
+            groupId: updatedData.groupId,
+            participants: updatedData.participants.map(p => ({
+              email: p.user.email || currentUser.email,
+              share: p.share,
+            })),
+            transactionDate: updatedData.date,
+          },
+          auditInfo
+        );
+
+        if (success) {
+          set({ editingExpenseId: null });
+          // Reload data to get the latest state
+          await get().actions.loadInitialData();
+        }
+      } catch (error) {
+        console.error('Error updating expense:', error);
+      }
     },
+
     clearEditingExpense: () => {
       set({ editingExpenseId: null });
     },
-    recordSettlement: (payee, settlements) => {
-      const settlementExpenses: Expense[] = settlements.map(
-        ({ groupId, amount }) => {
-          const baseSettlement = {
-            id: `settlement-${Date.now()}-${Math.random()}`,
-            isSettlement: true,
-            description: `Payment to ${payee.name}`,
-            amount,
-            paidBy: get().currentUser, // You are the one paying
-            // The payee is the sole participant, "owing" the full amount back to you.
-            // This creates a negative debt for them, effectively cancelling your positive debt.
-            participants: [{ user: payee, share: amount }],
-            date: new Date().toISOString(),
-            history: [
-              {
-                actor: get().currentUser,
-                action: `paid ${payee.name} $${amount.toFixed(2)}`,
-                timestamp: new Date().toISOString(),
-              },
-            ],
-          };
 
-          // Only include groupId if it's not empty (for group settlements)
-          if (groupId) {
-            return { ...baseSettlement, groupId };
-          }
+    recordSettlement: async (payee, settlements) => {
+      if (!payee.email) return;
 
-          // For individual settlements, don't include groupId
-          return baseSettlement;
+      try {
+        const success = await recordSettlementAPI(payee.email, settlements);
+        
+        if (success) {
+          // Reload data to get the latest state
+          await get().actions.loadInitialData();
         }
-      );
-
-      set(state => ({
-        expenses: [...state.expenses, ...settlementExpenses]
-      }));
+      } catch (error) {
+        console.error('Error recording settlement:', error);
+      }
     },
-    recordSettlementReverse: (payer, settlements) => {
-      const settlementExpenses: Expense[] = settlements.map(
-        ({ groupId, amount }) => {
-          const baseSettlement = {
-            id: `settlement-${Date.now()}-${Math.random()}`,
-            isSettlement: true,
-            description: `Payment from ${payer.name}`,
-            amount,
-            paidBy: payer, // The other user is paying
-            // The current user is the sole participant, "owing" the full amount back to the payer.
-            // This creates a negative debt for the current user, effectively cancelling the payer's positive debt.
-            participants: [{ user: get().currentUser, share: amount }],
-            date: new Date().toISOString(),
-            history: [
-              {
-                actor: get().currentUser,
-                action: `received $${amount.toFixed(2)} from ${payer.name}`,
-                timestamp: new Date().toISOString(),
-              },
-            ],
-          };
 
-          // Only include groupId if it's not empty (for group settlements)
-          if (groupId) {
-            return { ...baseSettlement, groupId };
-          }
+    recordSettlementReverse: async (payer, settlements) => {
+      if (!payer.email) return;
 
-          // For individual settlements, don't include groupId
-          return baseSettlement;
+      try {
+        const success = await recordSettlementReverseAPI(payer.email, settlements);
+        
+        if (success) {
+          // Reload data to get the latest state
+          await get().actions.loadInitialData();
         }
-      );
-
-      set(state => ({
-        expenses: [...state.expenses, ...settlementExpenses]
-      }));
+      } catch (error) {
+        console.error('Error recording reverse settlement:', error);
+      }
     },
+
     setPreselectedUserForExpense: (userId) => {
       set({ preselectedUserIdForExpense: userId });
     },
-    updateCurrentUser: (updatedData) => {
-      set(state => ({
-        currentUser: { ...state.currentUser, ...updatedData }
-      }));
+
+    updateCurrentUser: async (updatedData) => {
+      try {
+        const success = await updateUserProfile(updatedData);
+        
+        if (success) {
+          // Update local state
+          set(state => ({
+            currentUser: state.currentUser ? { ...state.currentUser, ...updatedData } : null
+          }));
+          
+          // Reload data to ensure consistency
+          await get().actions.loadInitialData();
+        }
+      } catch (error) {
+        console.error('Error updating user profile:', error);
+      }
     },
-    addUser: (name) => {
-      const newUser: User = {
-        id: `user-${Date.now()}`,
-        name: name.trim(),
-        avatarUrl: `https://i.pravatar.cc/48?u=${Date.now()}`,
-      };
-      set(state => ({
-        users: [...state.users, newUser]
-      }));
+
+    inviteUser: async (email, name) => {
+      try {
+        const success = await inviteUserByEmail(email, name);
+        
+        if (success) {
+          // Reload data to get the latest state including the new invited user
+          await get().actions.loadInitialData();
+        }
+      } catch (error) {
+        console.error('Error inviting user:', error);
+      }
     },
   },
 }));

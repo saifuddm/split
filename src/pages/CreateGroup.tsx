@@ -13,7 +13,7 @@ export const CreateGroup: React.FC = () => {
   const [selectedMembers, setSelectedMembers] = useState<User[]>([]);
   
   // Get all users except the current user
-  const availableUsers = users.filter(user => user.id !== currentUser.id);
+  const availableUsers = users.filter(user => user.id !== currentUser?.id);
   
   const handleMemberToggle = (user: User) => {
     setSelectedMembers(prev => {
@@ -26,15 +26,24 @@ export const CreateGroup: React.FC = () => {
     });
   };
   
-  const handleCreateGroup = () => {
-    if (groupName.trim() && selectedMembers.length > 0) {
-      actions.createGroup(groupName.trim(), selectedMembers);
-      // Navigate to the new group (the action will handle this)
+  const handleCreateGroup = async () => {
+    if (groupName.trim() && selectedMembers.length > 0 && currentUser) {
+      await actions.createGroup(groupName.trim(), selectedMembers);
       navigate('/dashboard');
     }
   };
   
   const isFormValid = groupName.trim() && selectedMembers.length > 0;
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-base text-text flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-subtext1">Loading...</p>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="min-h-screen bg-base text-text">
@@ -92,7 +101,19 @@ export const CreateGroup: React.FC = () => {
                     className="text-blue focus:ring-blue"
                   />
                   <Avatar user={user} size="sm" />
-                  <span className="font-medium">{user.name}</span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{user.name}</span>
+                      {user.isInvited && (
+                        <span className="text-xs bg-yellow/20 text-yellow px-2 py-1 rounded">
+                          Invited
+                        </span>
+                      )}
+                    </div>
+                    {user.email && (
+                      <p className="text-xs text-subtext1">{user.email}</p>
+                    )}
+                  </div>
                 </label>
               ))}
             </div>

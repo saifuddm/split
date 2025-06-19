@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, UserPlus, LogOut } from 'lucide-react';
+import { ArrowLeft, UserPlus, LogOut, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../data/useAppStore';
 import { useStore } from '../data/store';
@@ -14,34 +14,39 @@ export const Settings: React.FC = () => {
   const { currentUser, users, actions } = useAppStore();
   const { isDark, toggleDarkMode } = useStore();
   const { user, signOut } = useAuth();
-  const [paymentMessage, setPaymentMessage] = useState(currentUser.paymentMessage || '');
+  const [paymentMessage, setPaymentMessage] = useState(currentUser?.paymentMessage || '');
   const [isInviting, setIsInviting] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserName, setNewUserName] = useState('');
 
   // Get all users except the current user
-  const otherUsers = users.filter(user => user.id !== currentUser.id);
+  const otherUsers = users.filter(user => user.id !== currentUser?.id);
 
-  const handleSavePaymentMessage = () => {
-    actions.updateCurrentUser({ paymentMessage: paymentMessage.trim() || undefined });
+  const handleSavePaymentMessage = async () => {
+    if (currentUser) {
+      await actions.updateCurrentUser({ paymentMessage: paymentMessage.trim() || undefined });
+    }
   };
 
-  const handleBack = () => {
+  const handleBack = async () => {
     // Save payment message before leaving if it's different
-    if (paymentMessage.trim() !== (currentUser.paymentMessage || '')) {
-      handleSavePaymentMessage();
+    if (paymentMessage.trim() !== (currentUser?.paymentMessage || '')) {
+      await handleSavePaymentMessage();
     }
     navigate('/dashboard');
   };
 
-  const handleInviteUser = () => {
-    if (newUserName.trim()) {
-      actions.addUser(newUserName.trim());
+  const handleInviteUser = async () => {
+    if (newUserEmail.trim()) {
+      await actions.inviteUser(newUserEmail.trim(), newUserName.trim() || undefined);
+      setNewUserEmail('');
       setNewUserName('');
       setIsInviting(false);
     }
   };
 
   const handleCancelInvite = () => {
+    setNewUserEmail('');
     setNewUserName('');
     setIsInviting(false);
   };
@@ -50,6 +55,16 @@ export const Settings: React.FC = () => {
     await signOut();
     navigate('/login');
   };
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-base text-text flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-subtext1">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-base text-text">
@@ -76,7 +91,7 @@ export const Settings: React.FC = () => {
             
             <div className="flex items-center gap-4 mb-4">
               <Avatar user={currentUser} size="lg" />
-              <div>
+              <div className="flex-1">
                 <h3 className="font-medium text-lg">{currentUser.name}</h3>
                 <p className="text-sm text-subtext1">{user?.email}</p>
               </div>
@@ -145,33 +160,51 @@ export const Settings: React.FC = () => {
             {isInviting && (
               <div className="mb-4 p-3 bg-surface0 rounded-lg">
                 <div className="space-y-3">
-                  <label htmlFor="newUserName" className="block text-sm font-medium">
-                    User Name
-                  </label>
-                  <input
-                    id="newUserName"
-                    type="text"
-                    value={newUserName}
-                    onChange={(e) => setNewUserName(e.target.value)}
-                    placeholder="Enter user's name"
-                    className="w-full px-3 py-2 bg-mantle border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleInviteUser();
-                      } else if (e.key === 'Escape') {
-                        handleCancelInvite();
-                      }
-                    }}
-                    autoFocus
-                  />
+                  <div>
+                    <label htmlFor="newUserEmail" className="block text-sm font-medium mb-1">
+                      Email Address *
+                    </label>
+                    <input
+                      id="newUserEmail"
+                      type="email"
+                      value={newUserEmail}
+                      onChange={(e) => setNewUserEmail(e.target.value)}
+                      placeholder="Enter user's email"
+                      className="w-full px-3 py-2 bg-mantle border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="newUserName" className="block text-sm font-medium mb-1">
+                      Display Name (optional)
+                    </label>
+                    <input
+                      id="newUserName"
+                      type="text"
+                      value={newUserName}
+                      onChange={(e) => setNewUserName(e.target.value)}
+                      placeholder="Enter user's name"
+                      className="w-full px-3 py-2 bg-mantle border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleInviteUser();
+                        } else if (e.key === 'Escape') {
+                          handleCancelInvite();
+                        }
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-subtext1">
+                    The user will be able to participate in expenses immediately. When they sign up, they'll be able to access the full app.
+                  </p>
                   <div className="flex gap-2">
                     <Button
                       onClick={handleInviteUser}
                       size="sm"
-                      disabled={!newUserName.trim()}
-                      className={!newUserName.trim() ? 'opacity-50 cursor-not-allowed' : ''}
+                      disabled={!newUserEmail.trim()}
+                      className={!newUserEmail.trim() ? 'opacity-50 cursor-not-allowed' : ''}
                     >
-                      Save
+                      Invite User
                     </Button>
                     <Button
                       onClick={handleCancelInvite}
@@ -195,9 +228,25 @@ export const Settings: React.FC = () => {
                 otherUsers.map(user => (
                   <Card key={user.id} className="p-3">
                     <div className="flex items-center gap-3">
-                      <Avatar user={user} size="sm" />
-                      <div>
-                        <span className="font-medium">{user.name}</span>
+                      {user.isInvited ? (
+                        <div className="w-8 h-8 bg-surface1 rounded-full flex items-center justify-center">
+                          <Mail size={16} className="text-subtext1" />
+                        </div>
+                      ) : (
+                        <Avatar user={user} size="sm" />
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{user.name}</span>
+                          {user.isInvited && (
+                            <span className="text-xs bg-yellow/20 text-yellow px-2 py-1 rounded">
+                              Invited
+                            </span>
+                          )}
+                        </div>
+                        {user.email && (
+                          <p className="text-xs text-subtext1">{user.email}</p>
+                        )}
                         {user.paymentMessage && (
                           <p className="text-xs text-subtext1">{user.paymentMessage}</p>
                         )}
