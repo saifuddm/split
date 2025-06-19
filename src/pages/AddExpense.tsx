@@ -14,7 +14,7 @@ export const AddExpense: React.FC = () => {
     editingExpenseId, 
     preselectedUserIdForExpense,
     currentUser,
-    users,
+    contacts,
     groups, 
     expenses, 
     actions 
@@ -44,22 +44,35 @@ export const AddExpense: React.FC = () => {
   const selectedGroup = groups.find(g => g.id === selectedGroupId);
   const isEditMode = editingExpenseId !== null;
   const editingExpense = isEditMode ? expenses.find(e => e.id === editingExpenseId) : null;
-  const preselectedUser = preselectedUserIdForExpense ? users.find(u => u.id === preselectedUserIdForExpense) : null;
-
   
-  // Filter groups based on preselected user
+  // Find preselected user from contacts
+  const preselectedUser = preselectedUserIdForExpense ? 
+    contacts.find(c => 
+      c.contactUserId === preselectedUserIdForExpense || 
+      `contact_${c.id}` === preselectedUserIdForExpense
+    ) : null;
+
+  // Convert contact to user object for UI
+  const preselectedUserAsUser = preselectedUser ? {
+    id: preselectedUser.contactUserId || `contact_${preselectedUser.id}`,
+    name: preselectedUser.contactName,
+    email: preselectedUser.contactEmail,
+    isInvited: preselectedUser.isInvited,
+  } : null;
+  
+  // Filter groups based on preselected user (only if they're registered)
   const availableGroups = useMemo(() => {
-    if (preselectedUser) {
+    if (preselectedUserAsUser && !preselectedUserAsUser.isInvited) {
       return groups.filter(group => 
         group.members.some(m => m.id === currentUser.id) && 
-        group.members.some(m => m.id === preselectedUser.id)
+        group.members.some(m => m.id === preselectedUserAsUser.id)
       );
     }
     return groups;
-  }, [groups, preselectedUser, currentUser.id]);
+  }, [groups, preselectedUserAsUser, currentUser.id]);
 
   // Check if we're in non-group mode
-  const isNonGroupMode = (preselectedUser && availableGroups.length === 0) || expenseType === 'individual';
+  const isNonGroupMode = (preselectedUserAsUser && (preselectedUserAsUser.isInvited || availableGroups.length === 0)) || expenseType === 'individual';
   
   // Memoized options for "Paid by" section - only registered users can pay
   const paidByOptions = useMemo(() => {
@@ -73,17 +86,17 @@ export const AddExpense: React.FC = () => {
           self.findIndex(u => u.id === user.id) === index
         );
         return uniqueUsers.filter(user => !user.isInvited);
-      } else if (preselectedUser && !preselectedUser.isInvited) {
-        return [currentUser, preselectedUser];
+      } else if (preselectedUserAsUser && !preselectedUserAsUser.isInvited) {
+        return [currentUser, preselectedUserAsUser];
       }
     }
     return [currentUser];
-  }, [selectedGroup, isNonGroupMode, isEditMode, editingExpense, preselectedUser, currentUser]);
+  }, [selectedGroup, isNonGroupMode, isEditMode, editingExpense, preselectedUserAsUser, currentUser]);
 
-  // Memoized options for participant selection - only registered users can participate
+  // Memoized options for participant selection - all users can participate (including invited)
   const availableParticipantsForSelection = useMemo(() => {
     if (selectedGroup) {
-      return selectedGroup.members.filter(member => !member.isInvited);
+      return selectedGroup.members;
     } else if (isNonGroupMode) {
       if (isEditMode && editingExpense) {
         // In edit mode, get all unique users from the expense participants plus the payer
@@ -91,13 +104,13 @@ export const AddExpense: React.FC = () => {
         const uniqueUsers = expenseUsers.filter((user, index, self) => 
           self.findIndex(u => u.id === user.id) === index
         );
-        return uniqueUsers.filter(user => !user.isInvited);
-      } else if (preselectedUser && !preselectedUser.isInvited) {
-        return [currentUser, preselectedUser];
+        return uniqueUsers;
+      } else if (preselectedUserAsUser) {
+        return [currentUser, preselectedUserAsUser];
       }
     }
     return [currentUser];
-  }, [selectedGroup, isNonGroupMode, isEditMode, editingExpense, preselectedUser, currentUser]);
+  }, [selectedGroup, isNonGroupMode, isEditMode, editingExpense, preselectedUserAsUser, currentUser]);
   
   // Memoized participants who will actually split the cost
   const participantsToSplit = useMemo(() => {
@@ -109,30 +122,30 @@ export const AddExpense: React.FC = () => {
   
   // Handle preselected user logic
   useEffect(() => {
-    if (preselectedUser && !isEditMode) {
-      // Check if preselected user is invited (not registered)
-      if (preselectedUser.isInvited) {
-        // Show error message or redirect - invited users can't be in expenses yet
-        alert('This user needs to complete their signup before you can create expenses with them.');
-        navigate('/dashboard');
-        return;
-      }
-
-      // Set the preselected user as the payer
-      setPaidBy(preselectedUser);
-      
-      // If there are available groups, default to group mode and select the first one
-      if (availableGroups.length > 0) {
-        setExpenseType('group');
-        setSelectedGroupId(availableGroups[0].id);
-      } else {
-        // Non-group mode: set up participants for direct expense
+    if (preselectedUserAsUser && !isEditMode) {
+      // If preselected user is invited, force individual expense mode
+      if (preselectedUserAsUser.isInvited) {
         setExpenseType('individual');
-        setSelectedParticipants([currentUser, preselectedUser]);
-        setSelectedGroupId(''); // Clear group selection
+        setSelectedGroupId('');
+        setSelectedParticipants([currentUser, preselectedUserAsUser]);
+        setPaidBy(currentUser); // Only current user can pay for invited users
+      } else {
+        // Set the preselected user as the payer if they're registered
+        setPaidBy(preselectedUserAsUser);
+        
+        // If there are available groups, default to group mode and select the first one
+        if (availableGroups.length > 0) {
+          setExpenseType('group');
+          setSelectedGroupId(availableGroups[0].id);
+        } else {
+          // Non-group mode: set up participants for direct expense
+          setExpenseType('individual');
+          setSelectedParticipants([currentUser, preselectedUserAsUser]);
+          setSelectedGroupId(''); // Clear group selection
+        }
       }
     }
-  }, [preselectedUser, availableGroups, isEditMode, currentUser, navigate]);
+  }, [preselectedUserAsUser, availableGroups, isEditMode, currentUser]);
   
   // Pre-fill form when in edit mode
   useEffect(() => {
@@ -178,12 +191,12 @@ export const AddExpense: React.FC = () => {
       if (!paidBy || !selectedGroup.members.find(m => m.id === paidBy.id)) {
         setPaidBy(currentUser);
       }
-      // In simple mode, all members are participants (excluding invited users)
+      // In simple mode, all members are participants
       if (!isAdvanced) {
-        setSelectedParticipants(selectedGroup.members.filter(member => !member.isInvited));
+        setSelectedParticipants(selectedGroup.members);
       } else if (selectedParticipants.length === 0 && !isEditMode) {
-        // Initialize with all members in advanced mode (but not when editing, excluding invited users)
-        setSelectedParticipants(selectedGroup.members.filter(member => !member.isInvited));
+        // Initialize with all members in advanced mode (but not when editing)
+        setSelectedParticipants(selectedGroup.members);
       }
     }
   }, [selectedGroupId, selectedGroup, paidBy?.id, isAdvanced, isEditMode, currentUser]);
@@ -191,7 +204,7 @@ export const AddExpense: React.FC = () => {
   // Reset advanced settings when switching modes
   useEffect(() => {
     if (!isAdvanced && selectedGroup && !isEditMode) {
-      setSelectedParticipants(selectedGroup.members.filter(member => !member.isInvited));
+      setSelectedParticipants(selectedGroup.members);
       setSplitMethod('equally');
       setExactAmounts({});
       setPercentages({});
@@ -389,28 +402,28 @@ export const AddExpense: React.FC = () => {
       <div className="max-w-md mx-auto p-4">
         <div className="space-y-6">
           {/* Preselected User Info */}
-          {preselectedUser && !isEditMode && !preselectedUser.isInvited && (
+          {preselectedUserAsUser && !isEditMode && (
             <div className="bg-surface0 p-4 rounded-lg">
               <h3 className="font-medium mb-2">Adding expense with:</h3>
               <div className="flex items-center gap-3">
-                <Avatar user={preselectedUser} size="sm" />
-                <span className="font-medium">{preselectedUser.name}</span>
+                <div className="relative">
+                  <Avatar user={preselectedUserAsUser} size="sm" />
+                  {preselectedUserAsUser.isInvited && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow rounded-full border-2 border-surface0"></div>
+                  )}
+                </div>
+                <div>
+                  <span className="font-medium">{preselectedUserAsUser.name}</span>
+                  {preselectedUserAsUser.isInvited && (
+                    <p className="text-xs text-yellow">Invited user - individual expense only</p>
+                  )}
+                </div>
               </div>
             </div>
           )}
 
-          {/* Invited User Warning */}
-          {preselectedUser && preselectedUser.isInvited && (
-            <div className="bg-red/10 border border-red/20 p-4 rounded-lg">
-              <h3 className="font-medium text-red mb-2">User Not Available</h3>
-              <p className="text-sm text-red/80">
-                {preselectedUser.name} needs to complete their signup before you can create expenses with them.
-              </p>
-            </div>
-          )}
-
           {/* Expense Type Toggle - Only show if preselected user has shared groups and is not invited */}
-          {preselectedUser && !preselectedUser.isInvited && availableGroups.length > 0 && !isEditMode && (
+          {preselectedUserAsUser && !preselectedUserAsUser.isInvited && availableGroups.length > 0 && !isEditMode && (
             <div className="bg-surface0 p-4 rounded-lg">
               <h3 className="font-medium mb-3">Expense Type</h3>
               <div className="flex gap-2">
@@ -433,7 +446,7 @@ export const AddExpense: React.FC = () => {
                   onClick={() => {
                     setExpenseType('individual');
                     setSelectedGroupId('');
-                    setSelectedParticipants([currentUser, preselectedUser]);
+                    setSelectedParticipants([currentUser, preselectedUserAsUser]);
                   }}
                   className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
                     expenseType === 'individual'
@@ -509,9 +522,14 @@ export const AddExpense: React.FC = () => {
           {/* Non-group mode info */}
           {isNonGroupMode && (
             <Card className="p-4">
-              <h3 className="font-medium mb-2">Direct Expense</h3>
+              <h3 className="font-medium mb-2">
+                {preselectedUserAsUser?.isInvited ? 'Individual Expense with Invited User' : 'Direct Expense'}
+              </h3>
               <p className="text-sm text-subtext1">
-                This will be logged as a direct expense with {preselectedUser?.name || 'the selected person'}.
+                {preselectedUserAsUser?.isInvited 
+                  ? `This will be logged as an individual expense with ${preselectedUserAsUser.name}. They can participate even before completing their signup.`
+                  : `This will be logged as a direct expense with ${preselectedUserAsUser?.name || 'the selected person'}.`
+                }
               </p>
             </Card>
           )}
@@ -595,10 +613,20 @@ export const AddExpense: React.FC = () => {
                         onChange={() => handleParticipantToggle(member)}
                         className="text-blue focus:ring-blue"
                       />
-                      <Avatar user={member} size="sm" />
-                      <span className="font-medium">
-                        {member.id === currentUser.id ? 'You' : member.name}
-                      </span>
+                      <div className="relative">
+                        <Avatar user={member} size="sm" />
+                        {member.isInvited && (
+                          <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow rounded-full border border-mantle"></div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <span className="font-medium">
+                          {member.id === currentUser.id ? 'You' : member.name}
+                        </span>
+                        {member.isInvited && (
+                          <p className="text-xs text-yellow">Invited</p>
+                        )}
+                      </div>
                     </label>
                   ))}
                 </div>
@@ -652,7 +680,12 @@ export const AddExpense: React.FC = () => {
                     <div className="space-y-3">
                       {participantsToSplit.map(participant => (
                         <div key={participant.id} className="flex items-center gap-3">
-                          <Avatar user={participant} size="sm" />
+                          <div className="relative">
+                            <Avatar user={participant} size="sm" />
+                            {participant.isInvited && (
+                              <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow rounded-full border border-mantle"></div>
+                            )}
+                          </div>
                           <span className="font-medium flex-1">
                             {participant.id === currentUser.id ? 'You' : participant.name}
                           </span>
@@ -681,7 +714,12 @@ export const AddExpense: React.FC = () => {
                     <div className="space-y-3">
                       {participantsToSplit.map(participant => (
                         <div key={participant.id} className="flex items-center gap-3">
-                          <Avatar user={participant} size="sm" />
+                          <div className="relative">
+                            <Avatar user={participant} size="sm" />
+                            {participant.isInvited && (
+                              <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow rounded-full border border-mantle"></div>
+                            )}
+                          </div>
                           <span className="font-medium flex-1">
                             {participant.id === currentUser.id ? 'You' : participant.name}
                           </span>

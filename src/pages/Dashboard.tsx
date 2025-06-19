@@ -10,7 +10,7 @@ import { Button } from "../components/Button";
 import { Avatar } from "../components/Avatar";
 
 export const Dashboard: React.FC = () => {
-  const { currentUser, users, groups, expenses, actions } = useAppStore();
+  const { currentUser, contacts, groups, expenses, actions } = useAppStore();
   const navigate = useNavigate();
 
   // Early return if currentUser is null
@@ -22,10 +22,18 @@ export const Dashboard: React.FC = () => {
     );
   }
 
-  // Calculate overall balances using the utility function
+  // Get all users from contacts for Quick Add section
+  const contactUsers = contacts.map(contact => ({
+    id: contact.contactUserId || `contact_${contact.id}`,
+    name: contact.contactName,
+    email: contact.contactEmail,
+    isInvited: contact.isInvited,
+  }));
+
+  // Calculate overall balances using the utility function (only for registered users)
   const overallBalances: { [userId: string]: number } = {};
-  users.forEach(user => {
-    if (user.id !== currentUser.id) {
+  contactUsers.forEach(user => {
+    if (user.id !== currentUser.id && !user.isInvited) {
       overallBalances[user.id] = calculateNetBalanceBetweenTwoUsers(
         currentUser,
         user,
@@ -35,10 +43,10 @@ export const Dashboard: React.FC = () => {
     }
   });
 
-  // Calculate individual balances (non-group only) for the summary card
+  // Calculate individual balances (non-group only) for the summary card (only for registered users)
   const individualBalances: { [userId: string]: number } = {};
-  users.forEach(user => {
-    if (user.id !== currentUser.id) {
+  contactUsers.forEach(user => {
+    if (user.id !== currentUser.id && !user.isInvited) {
       individualBalances[user.id] = calculateNetBalanceBetweenTwoUsers(
         currentUser,
         user,
@@ -76,16 +84,13 @@ export const Dashboard: React.FC = () => {
     navigate("/add-expense");
   };
 
-  // Get other users for Quick Add (excluding current user)
-  const otherUsers = users.filter((user) => user.id !== currentUser.id);
-
-  // Get users with individual balances for the summary
-  const usersWithIndividualDebtsToYou = users.filter(
-    (user) => user.id !== currentUser.id && individualBalances[user.id] > 0.01,
+  // Get users with individual balances for the summary (only registered users)
+  const usersWithIndividualDebtsToYou = contactUsers.filter(
+    (user) => user.id !== currentUser.id && !user.isInvited && individualBalances[user.id] > 0.01,
   );
 
-  const usersYouOweIndividually = users.filter(
-    (user) => user.id !== currentUser.id && individualBalances[user.id] < -0.01,
+  const usersYouOweIndividually = contactUsers.filter(
+    (user) => user.id !== currentUser.id && !user.isInvited && individualBalances[user.id] < -0.01,
   );
 
   return (
@@ -123,20 +128,28 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Quick Add Section */}
-        {otherUsers.length > 0 && (
+        {contactUsers.length > 0 && (
           <div className="mb-6">
             <h2 className="mb-3 text-lg font-semibold">Add Expense with...</h2>
             <div className="flex gap-4 overflow-x-auto py-2">
-              {otherUsers.map((user) => (
+              {contactUsers.map((user) => (
                 <div
                   key={user.id}
                   onClick={() => handleUserCardClick(user.id)}
                   className="hover:bg-surface0 flex flex-shrink-0 cursor-pointer flex-col items-center gap-2 rounded-lg p-2 transition-colors"
                 >
-                  <Avatar user={user} size="md" />
+                  <div className="relative">
+                    <Avatar user={user} size="md" />
+                    {user.isInvited && (
+                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow rounded-full border-2 border-base"></div>
+                    )}
+                  </div>
                   <span className="text-center text-sm font-medium whitespace-nowrap">
                     {user.name}
                   </span>
+                  {user.isInvited && (
+                    <span className="text-xs text-yellow">Invited</span>
+                  )}
                 </div>
               ))}
             </div>

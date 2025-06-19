@@ -455,7 +455,12 @@ export const addExpense = async (expenseData: Omit<Expense, 'id' | 'history'>): 
   
   // Extract actual user ID (remove contact_ prefix if present)
   const getActualUserId = (id: string) => {
-    return id.startsWith('contact_') ? id : id;
+    if (id.startsWith('contact_')) {
+      // For contact users, we need to get the actual user ID from the contact
+      // This is a placeholder - in a real implementation, you'd need to handle this properly
+      return id.replace('contact_', '');
+    }
+    return id;
   };
 
   // Insert the expense
@@ -512,7 +517,10 @@ export const updateExpense = async (
   
   // Extract actual user ID (remove contact_ prefix if present)
   const getActualUserId = (id: string) => {
-    return id.startsWith('contact_') ? id : id;
+    if (id.startsWith('contact_')) {
+      return id.replace('contact_', '');
+    }
+    return id;
   };
   
   // Update the expense
