@@ -27,10 +27,12 @@ const transformContactToUser = (contact: any, userProfiles: User[]): User => {
     }
   }
   
-  // Invited user or fallback
+  // Invited user or fallback - ensure name is always a string
+  const contactName = contact.contact_name || contact.contact_email || 'Unknown User';
+  
   return {
     id: `contact_${contact.id}`, // Special prefix for contacts
-    name: contact.contact_name,
+    name: contactName,
     email: contact.contact_email,
     avatarUrl: undefined,
     paymentMessage: undefined,
@@ -163,13 +165,15 @@ export const addContactByEmail = async (email: string, fullName?: string): Promi
   const userId = await getCurrentUserId();
   
   // First check if this email belongs to an existing user
+  // Note: This query may return a 406 error if no user is found, which is expected behavior
   const { data: existingUser, error: userError } = await supabase
     .from('profiles')
     .select('id, full_name')
     .eq('email', email.toLowerCase().trim())
-    .single();
+    .maybeSingle(); // Use maybeSingle() instead of single() to avoid throwing on no results
 
-  if (userError && userError.code !== 'PGRST116') { // PGRST116 is "not found"
+  // Only throw if it's a real error, not just "no user found"
+  if (userError && userError.code !== 'PGRST116') {
     throw userError;
   }
 
@@ -187,12 +191,14 @@ export const addContactByEmail = async (email: string, fullName?: string): Promi
     if (error) throw error;
   } else {
     // User doesn't exist - add as invited contact
+    const contactName = fullName?.trim() || email.split('@')[0] || 'Unknown User';
+    
     const { error } = await supabase
       .from('contacts')
       .insert({
         user_id: userId,
         contact_email: email.toLowerCase().trim(),
-        contact_name: fullName?.trim() || email.split('@')[0],
+        contact_name: contactName,
         is_invited: true,
       });
 
