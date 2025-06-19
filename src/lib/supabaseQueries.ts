@@ -19,24 +19,24 @@ const transformProfile = (profile: any): User => ({
 
 // Transform contact to User type for UI compatibility
 const transformContactToUser = (contact: any, userProfiles: User[]): User => {
-  if (contact.contact_user_id) {
+  if (contact.contactUserId) {
     // Registered user - find their profile
-    const userProfile = userProfiles.find(u => u.id === contact.contact_user_id);
+    const userProfile = userProfiles.find(u => u.id === contact.contactUserId);
     if (userProfile) {
       return userProfile;
     }
   }
   
   // Invited user or fallback - ensure name is always a string
-  const contactName = contact.contact_name || contact.contact_email || 'Unknown User';
+  const contactName = contact.contactName || contact.contactEmail || 'Unknown User';
   
   return {
     id: `contact_${contact.id}`, // Special prefix for contacts
     name: contactName,
-    email: contact.contact_email,
+    email: contact.contactEmail,
     avatarUrl: undefined,
     paymentMessage: undefined,
-    isInvited: contact.is_invited,
+    isInvited: contact.isInvited,
   };
 };
 
@@ -103,8 +103,8 @@ export const getAllProfiles = async (): Promise<User[]> => {
   
   // Get all registered user profiles that are either contacts or group members
   const contactUserIds = contacts
-    .filter(c => c.contact_user_id)
-    .map(c => c.contact_user_id);
+    .filter(c => c.contactUserId)
+    .map(c => c.contactUserId);
   
   // Get group member IDs
   const { data: groupMemberships, error: groupError } = await supabase

@@ -30,8 +30,8 @@ export const CreateGroup: React.FC = () => {
     if (!newMemberEmail.trim()) return;
 
     try {
-      // First, invite the user by email
-      await actions.inviteUserByEmail(newMemberEmail.trim());
+      // First, add the user by email as a contact
+      await actions.addContactByEmail(newMemberEmail.trim());
       
       // Reload data to get the newly invited user
       await actions.loadInitialData();
