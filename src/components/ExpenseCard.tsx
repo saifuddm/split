@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { ChevronDown, Pencil, CheckCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useAppStore } from "../data/useAppStore";
 import { Card } from "./Card";
 import { Button } from "./Button";
@@ -11,6 +12,7 @@ interface ExpenseCardProps {
 }
 
 export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense }) => {
+  const navigate = useNavigate();
   const { currentUser, actions } = useAppStore();
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -28,6 +30,7 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense }) => {
         hour: "2-digit",
         minute: "2-digit",
       });
+    
     } else if (diffInHours < 24 * 7) {
       return date.toLocaleDateString("en-US", {
         weekday: "short",
@@ -41,6 +44,15 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense }) => {
         hour: "2-digit",
         minute: "2-digit",
       });
+    }
+  };
+
+  const handleEditExpense = () => {
+    actions.startEditingExpense(expense.id);
+    if (expense.groupId) {
+      navigate(`/add-expense/${expense.groupId}`);
+    } else {
+      navigate('/add-expense');
     }
   };
 
@@ -122,7 +134,7 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense }) => {
                 size="sm"
                 onClick={(e) => {
                   e.stopPropagation();
-                  actions.startEditingExpense(expense.id);
+                  handleEditExpense();
                 }}
                 className="flex items-center gap-1"
               >

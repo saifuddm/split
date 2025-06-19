@@ -1,12 +1,14 @@
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../data/useAppStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { ExpenseCard } from '../components/ExpenseCard';
 
 export const IndividualExpensesPage: React.FC = () => {
-  const { expenses, actions } = useAppStore();
+  const navigate = useNavigate();
+  const { expenses } = useAppStore();
   
   // Get all non-group transactions, sorted by date (newest first)
   const individualTransactions = expenses
@@ -21,7 +23,7 @@ export const IndividualExpensesPage: React.FC = () => {
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => actions.navigateTo('dashboard')}
+            onClick={() => navigate('/dashboard')}
             className="p-2"
           >
             <ArrowLeft size={20} />

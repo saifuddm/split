@@ -1,12 +1,14 @@
 import React from 'react';
 import { ArrowLeft, CheckCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../data/useAppStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
 
 export const ActivityFeed: React.FC = () => {
-  const { currentUser, groups, expenses, actions } = useAppStore();
+  const navigate = useNavigate();
+  const { currentUser, groups, expenses } = useAppStore();
   
   // Get all settlement transactions, sorted by date (newest first)
   const settlementTransactions = expenses
@@ -53,7 +55,7 @@ export const ActivityFeed: React.FC = () => {
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => actions.navigateTo('dashboard')}
+            onClick={() => navigate('/dashboard')}
             className="p-2"
           >
             <ArrowLeft size={20} />

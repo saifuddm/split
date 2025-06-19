@@ -1,11 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Spline, Scale, History } from 'lucide-react';
-import { useAppStore } from '../data/useAppStore';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 
 const HeroSection: React.FC = () => {
-  const { actions } = useAppStore();
+  const navigate = useNavigate();
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -52,13 +52,21 @@ const HeroSection: React.FC = () => {
           From group trips to apartment bills, track every dollar without the awkward conversations. Split makes it easy.
         </motion.p>
         
-        <motion.div variants={itemVariants}>
+        <motion.div variants={itemVariants} className="space-x-4">
           <Button
-            onClick={actions.enterApp}
+            onClick={() => navigate('/signup')}
             size="lg"
             className="text-xl px-8 py-4 shadow-lg hover:shadow-xl transition-all duration-300"
           >
-            Launch App
+            Get Started
+          </Button>
+          <Button
+            onClick={() => navigate('/login')}
+            variant="secondary"
+            size="lg"
+            className="text-xl px-8 py-4 shadow-lg hover:shadow-xl transition-all duration-300"
+          >
+            Sign In
           </Button>
         </motion.div>
       </motion.div>

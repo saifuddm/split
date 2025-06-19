@@ -1,9 +1,9 @@
 import React from "react";
 import { Plus, Users, Handshake, Settings, Bell } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useAppStore } from "../data/useAppStore";
 import {
-  calculateIndividualBalances,
-  calculateGroupBalance,
+  calculateNetBalanceBetweenTwoUsers,
 } from "../lib/utils";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
@@ -11,17 +11,60 @@ import { Avatar } from "../components/Avatar";
 
 export const Dashboard: React.FC = () => {
   const { currentUser, users, groups, expenses, actions } = useAppStore();
+  const navigate = useNavigate();
+
+  // Calculate overall balances using the utility function
+  const overallBalances: { [userId: string]: number } = {};
+  users.forEach(user => {
+    if (user.id !== currentUser.id) {
+      overallBalances[user.id] = calculateNetBalanceBetweenTwoUsers(
+        currentUser,
+        user,
+        groups,
+        expenses,
+      );
+    }
+  });
 
   // Calculate individual balances (non-group only) for the summary card
-  const individualBalances = calculateIndividualBalances(
-    currentUser,
-    users,
-    expenses,
-  );
+  const individualBalances: { [userId: string]: number } = {};
+  users.forEach(user => {
+    if (user.id !== currentUser.id) {
+      individualBalances[user.id] = calculateNetBalanceBetweenTwoUsers(
+        currentUser,
+        user,
+        [], // Pass empty groups array to calculate only individual expenses
+        expenses,
+      );
+    }
+  });
+
+  // Calculate net balance for a specific group (for group cards)
+  const getGroupBalance = (groupId: string) => {
+    const group = groups.find(g => g.id === groupId);
+    if (!group) return 0;
+
+    // Calculate the current user's total balance within this single group
+    let balance = 0;
+    group.members.forEach(member => {
+      if (member.id !== currentUser.id) {
+        const groupExpenses = expenses.filter(exp => exp.groupId === groupId);
+        // The balance with each member contributes to the total group balance
+        balance += calculateNetBalanceBetweenTwoUsers(
+          currentUser,
+          member,
+          [group],
+          groupExpenses,
+        );
+      }
+    });
+
+    return balance;
+  };
 
   const handleUserCardClick = (userId: string) => {
     actions.setPreselectedUserForExpense(userId);
-    actions.navigateTo("add-expense");
+    navigate("/add-expense");
   };
 
   // Get other users for Quick Add (excluding current user)
@@ -44,7 +87,7 @@ export const Dashboard: React.FC = () => {
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <div className="flex items-center gap-2">
             <Button
-              onClick={() => actions.navigateTo("activity")}
+              onClick={() => navigate("/activity")}
               variant="secondary"
               size="sm"
               className="p-2"
@@ -52,7 +95,7 @@ export const Dashboard: React.FC = () => {
               <Bell size={16} />
             </Button>
             <Button
-              onClick={() => actions.navigateTo("settings")}
+              onClick={() => navigate("/settings")}
               variant="secondary"
               size="sm"
               className="p-2"
@@ -60,7 +103,7 @@ export const Dashboard: React.FC = () => {
               <Settings size={16} />
             </Button>
             <Button
-              onClick={() => actions.navigateTo("create-group")}
+              onClick={() => navigate("/create-group")}
               size="sm"
               className="flex items-center gap-2"
             >
@@ -95,7 +138,7 @@ export const Dashboard: React.FC = () => {
         <div className="mb-6">
           <h2 className="mb-3 text-lg font-semibold">Individual Expenses</h2>
           <Card
-            onClick={() => actions.navigateTo("individual-expenses")}
+            onClick={() => navigate("/individual-expenses")}
             className="hover:bg-surface0 cursor-pointer transition-colors"
           >
             {usersWithIndividualDebtsToYou.length === 0 &&
@@ -158,15 +201,11 @@ export const Dashboard: React.FC = () => {
           <h2 className="mb-4 text-lg font-semibold">Groups</h2>
           <div className="space-y-3">
             {groups.map((group) => {
-              const balance = calculateGroupBalance(
-                currentUser,
-                group,
-                expenses,
-              );
+              const balance = getGroupBalance(group.id);
               return (
                 <Card
                   key={group.id}
-                  onClick={() => actions.navigateTo("group-details", group.id)}
+                  onClick={() => navigate(`/group/${group.id}`)}
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -206,7 +245,7 @@ export const Dashboard: React.FC = () => {
         <div className="fixed right-6 bottom-6 flex flex-col gap-3">
           {/* Settle Up Button */}
           <Button
-            onClick={() => actions.navigateTo("settle-up")}
+            onClick={() => navigate("/settle-up")}
             className="bg-green hover:bg-teal h-14 w-14 rounded-full shadow-lg"
           >
             <Handshake size={24} />
@@ -214,7 +253,7 @@ export const Dashboard: React.FC = () => {
 
           {/* Add Expense Button */}
           <Button
-            onClick={() => actions.navigateTo("add-expense")}
+            onClick={() => navigate("/add-expense")}
             className="h-14 w-14 rounded-full shadow-lg"
           >
             <Plus size={24} />

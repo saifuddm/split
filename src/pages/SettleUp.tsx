@@ -6,6 +6,7 @@ import {
   Calculator,
   List,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useAppStore } from "../data/useAppStore";
 import {
   calculateOverallBalances,
@@ -21,6 +22,7 @@ import { Avatar } from "../components/Avatar";
 import type { User } from "../lib/types";
 
 export const SettleUp: React.FC = () => {
+  const navigate = useNavigate();
   const { currentUser, users, groups, expenses, actions } = useAppStore();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [settlementMode, setSettlementMode] = useState<"net" | "individual">(
@@ -190,7 +192,7 @@ export const SettleUp: React.FC = () => {
       actions.recordSettlement(selectedUser, settlements);
     }
 
-    actions.navigateTo("dashboard");
+    navigate("/dashboard");
   };
 
   const handleBack = () => {
@@ -206,7 +208,7 @@ export const SettleUp: React.FC = () => {
     } else if (step === "confirmation") {
       setStep("specify-amounts");
     } else {
-      actions.navigateTo("dashboard");
+      navigate("/dashboard");
     }
   };
 

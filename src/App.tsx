@@ -1,56 +1,38 @@
 import { useEffect } from "react";
+import { Routes, Route } from "react-router-dom";
 import { useStore } from "./data/store";
-import { useAppStore } from "./data/useAppStore";
-import { Dashboard } from "./pages/Dashboard";
-import { GroupDetail } from "./pages/GroupDetail";
-import { AddExpense } from "./pages/AddExpense";
-import { CreateGroup } from "./pages/CreateGroup";
-import { SettleUp } from "./pages/SettleUp";
-import { Settings } from "./pages/Settings";
-import { ActivityFeed } from "./pages/ActivityFeed";
-import { IndividualExpensesPage } from "./pages/IndividualExpensesPage";
+import { LoginPage } from "./pages/LoginPage";
+import { SignUpPage } from "./pages/SignUpPage";
 import { LandingPage } from "./pages/LandingPage";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { MainAppLayout } from "./components/MainAppLayout";
 
 function App() {
   const { initializeDarkMode } = useStore();
-  const { currentPage, hasEnteredApp } = useAppStore();
 
   // Initialize dark mode based on system preference
   useEffect(() => {
     initializeDarkMode();
   }, [initializeDarkMode]);
 
-  // If user hasn't entered the app yet, show landing page
-  if (!hasEnteredApp) {
-    return <LandingPage />;
-  }
-
-  const renderCurrentPage = () => {
-    switch (currentPage) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'group-details':
-        return <GroupDetail />;
-      case 'add-expense':
-        return <AddExpense />;
-      case 'create-group':
-        return <CreateGroup />;
-      case 'settle-up':
-        return <SettleUp />;
-      case 'settings':
-        return <Settings />;
-      case 'activity':
-        return <ActivityFeed />;
-      case 'individual-expenses':
-        return <IndividualExpensesPage />;
-      default:
-        return <Dashboard />;
-    }
-  };
-
   return (
     <div className="min-h-screen bg-base text-text">
-      {renderCurrentPage()}
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/welcome" element={<LandingPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignUpPage />} />
+        
+        {/* Protected Application Routes */}
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <MainAppLayout />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
     </div>
   );
 }

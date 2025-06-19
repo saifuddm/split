@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../data/useAppStore';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
 import type { User } from '../lib/types';
 
 export const CreateGroup: React.FC = () => {
+  const navigate = useNavigate();
   const { currentUser, users, actions } = useAppStore();
   const [groupName, setGroupName] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<User[]>([]);
@@ -27,6 +29,8 @@ export const CreateGroup: React.FC = () => {
   const handleCreateGroup = () => {
     if (groupName.trim() && selectedMembers.length > 0) {
       actions.createGroup(groupName.trim(), selectedMembers);
+      // Navigate to the new group (the action will handle this)
+      navigate('/dashboard');
     }
   };
   
@@ -40,7 +44,7 @@ export const CreateGroup: React.FC = () => {
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => actions.navigateTo('dashboard')}
+            onClick={() => navigate('/dashboard')}
             className="p-2"
           >
             <ArrowLeft size={20} />

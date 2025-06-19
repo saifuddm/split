@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../data/useAppStore';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
@@ -7,8 +8,9 @@ import { Card } from '../components/Card';
 import type { User, SplitMethod } from '../lib/types';
 
 export const AddExpense: React.FC = () => {
+  const { groupId } = useParams<{ groupId: string }>();
+  const navigate = useNavigate();
   const { 
-    activeGroupId, 
     editingExpenseId, 
     preselectedUserIdForExpense,
     currentUser,
@@ -20,7 +22,7 @@ export const AddExpense: React.FC = () => {
   
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
-  const [selectedGroupId, setSelectedGroupId] = useState(activeGroupId || '');
+  const [selectedGroupId, setSelectedGroupId] = useState(groupId || '');
   const [paidBy, setPaidBy] = useState<User>(currentUser);
   const [isAdvanced, setIsAdvanced] = useState(false);
   const [selectedParticipants, setSelectedParticipants] = useState<User[]>([]);
@@ -304,9 +306,9 @@ export const AddExpense: React.FC = () => {
     actions.setPreselectedUserForExpense(null);
     
     if (selectedGroupId && expenseType === 'group') {
-      actions.navigateTo('group-details', selectedGroupId);
+      navigate(`/group/${selectedGroupId}`);
     } else {
-      actions.navigateTo('dashboard');
+      navigate('/dashboard');
     }
   };
   
@@ -318,10 +320,10 @@ export const AddExpense: React.FC = () => {
       actions.clearEditingExpense();
     }
     
-    if (activeGroupId) {
-      actions.navigateTo('group-details', activeGroupId);
+    if (groupId) {
+      navigate(`/group/${groupId}`);
     } else {
-      actions.navigateTo('dashboard');
+      navigate('/dashboard');
     }
   };
   

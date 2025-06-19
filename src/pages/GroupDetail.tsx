@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowLeft, Plus, Handshake } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../data/useAppStore';
 import { calculateSimplifiedDebts } from '../lib/utils';
 import { Card } from '../components/Card';
@@ -8,17 +9,19 @@ import { Avatar } from '../components/Avatar';
 import { ExpenseCard } from '../components/ExpenseCard';
 
 export const GroupDetail: React.FC = () => {
-  const { activeGroupId, currentUser, groups, expenses, actions } = useAppStore();
+  const { groupId } = useParams<{ groupId: string }>();
+  const navigate = useNavigate();
+  const { currentUser, groups, expenses } = useAppStore();
   
-  const group = groups.find(g => g.id === activeGroupId);
-  const groupExpenses = expenses.filter(exp => exp.groupId === activeGroupId);
+  const group = groups.find(g => g.id === groupId);
+  const groupExpenses = expenses.filter(exp => exp.groupId === groupId);
   
   if (!group) {
     return (
       <div className="min-h-screen bg-base text-text p-4">
         <div className="max-w-md mx-auto">
           <p>Group not found</p>
-          <Button onClick={() => actions.navigateTo('dashboard')}>
+          <Button onClick={() => navigate('/dashboard')}>
             Back to Dashboard
           </Button>
         </div>
@@ -37,7 +40,7 @@ export const GroupDetail: React.FC = () => {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => actions.navigateTo('dashboard')}
+              onClick={() => navigate('/dashboard')}
               className="p-2"
             >
               <ArrowLeft size={20} />
@@ -48,14 +51,14 @@ export const GroupDetail: React.FC = () => {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => actions.navigateTo('settle-up')}
+              onClick={() => navigate('/settle-up')}
               className="p-2"
             >
               <Handshake size={20} />
             </Button>
             <Button
               size="sm"
-              onClick={() => actions.navigateTo('add-expense', activeGroupId || undefined)}
+              onClick={() => navigate(`/add-expense/${groupId}`)}
               className="p-2"
             >
               <Plus size={20} />

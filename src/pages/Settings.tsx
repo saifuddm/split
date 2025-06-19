@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
-import { ArrowLeft, UserPlus } from 'lucide-react';
+import { ArrowLeft, UserPlus, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../data/useAppStore';
 import { useStore } from '../data/store';
+import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/Button';
 import { Switch } from '../components/Switch';
 import { Avatar } from '../components/Avatar';
 import { Card } from '../components/Card';
 
 export const Settings: React.FC = () => {
+  const navigate = useNavigate();
   const { currentUser, users, actions } = useAppStore();
   const { isDark, toggleDarkMode } = useStore();
+  const { user, signOut } = useAuth();
   const [paymentMessage, setPaymentMessage] = useState(currentUser.paymentMessage || '');
   const [isInviting, setIsInviting] = useState(false);
   const [newUserName, setNewUserName] = useState('');
@@ -26,7 +30,7 @@ export const Settings: React.FC = () => {
     if (paymentMessage.trim() !== (currentUser.paymentMessage || '')) {
       handleSavePaymentMessage();
     }
-    actions.navigateTo('dashboard');
+    navigate('/dashboard');
   };
 
   const handleInviteUser = () => {
@@ -40,6 +44,11 @@ export const Settings: React.FC = () => {
   const handleCancelInvite = () => {
     setNewUserName('');
     setIsInviting(false);
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/login');
   };
 
   return (
@@ -69,9 +78,19 @@ export const Settings: React.FC = () => {
               <Avatar user={currentUser} size="lg" />
               <div>
                 <h3 className="font-medium text-lg">{currentUser.name}</h3>
-                <p className="text-sm text-subtext1">Your profile</p>
+                <p className="text-sm text-subtext1">{user?.email}</p>
               </div>
             </div>
+
+            <Button
+              onClick={handleSignOut}
+              variant="destructive"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <LogOut size={16} />
+              Sign Out
+            </Button>
           </div>
 
           {/* Payment Information Section */}
@@ -212,8 +231,8 @@ export const Settings: React.FC = () => {
           <div className="bg-mantle rounded-lg p-4 border border-surface0">
             <h2 className="text-lg font-semibold mb-4">About</h2>
             <div className="space-y-2 text-sm text-subtext1">
-              <p><span className="font-medium text-text">Version:</span> 1.1.0</p>
-              <p><span className="font-medium text-text">Built with:</span> React, TypeScript, Tailwind CSS</p>
+              <p><span className="font-medium text-text">Version:</span> 2.0.0</p>
+              <p><span className="font-medium text-text">Built with:</span> React, TypeScript, Tailwind CSS, Supabase</p>
               <p>
                 <span className="font-medium text-text">Source:</span>{' '}
                 <a 

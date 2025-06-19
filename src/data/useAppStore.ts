@@ -8,21 +8,14 @@ import {
 import { generateAuditDetails } from "../lib/utils";
 import type { Group, Expense, User, AuditEntry } from "../lib/types";
 
-type Page = "dashboard" | "group-details" | "add-expense" | "create-group" | "settle-up" | "settings" | "activity" | "individual-expenses";
-
 interface AppState {
-  currentPage: Page;
-  activeGroupId: string | null;
   editingExpenseId: string | null;
-  hasEnteredApp: boolean;
   preselectedUserIdForExpense: string | null;
   currentUser: User;
   users: User[];
   groups: Group[];
   expenses: Expense[];
   actions: {
-    navigateTo: (page: Page, groupId?: string) => void;
-    enterApp: () => void;
     addExpense: (newExpense: Omit<Expense, "id" | "history">) => void;
     createGroup: (groupName: string, members: User[]) => void;
     startEditingExpense: (expenseId: string) => void;
@@ -46,19 +39,13 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
-  currentPage: "dashboard",
-  activeGroupId: null,
   editingExpenseId: null,
-  hasEnteredApp: false,
   preselectedUserIdForExpense: null,
   currentUser: initialCurrentUser,
   users: initialUsers,
   groups: initialGroups,
   expenses: initialExpenses,
   actions: {
-    navigateTo: (page, groupId) =>
-      set({ currentPage: page, activeGroupId: groupId || null }),
-    enterApp: () => set({ hasEnteredApp: true }),
     addExpense: (newExpenseData) => {
       const newExpense: Expense = {
         ...newExpenseData,
@@ -85,12 +72,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       set((state) => ({
         groups: [...state.groups, newGroup],
       }));
-      // Navigate to the new group's page after creation
-      get().actions.navigateTo("group-details", newGroup.id);
     },
     startEditingExpense: (expenseId) => {
       set({ editingExpenseId: expenseId });
-      get().actions.navigateTo("add-expense", get().activeGroupId || undefined);
     },
     updateExpense: (expenseId, updatedData) => {
       const originalExpense = get().expenses.find(e => e.id === expenseId);
