@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { generateAuditDetails } from "../lib/utils";
 import * as supabaseQueries from "../lib/supabaseQueries";
-import type { Group, Expense, User, AuditEntry } from "../lib/types";
+import type { Group, Expense, User } from "../lib/types";
 
 interface AppState {
   // Data state

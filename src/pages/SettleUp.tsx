@@ -39,6 +39,15 @@ export const SettleUp: React.FC = () => {
     "select-user" | "choose-mode" | "specify-amounts" | "confirmation"
   >("select-user");
 
+  // Early return if currentUser is null
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-base text-text flex items-center justify-center">
+        <p>Loading user data...</p>
+      </div>
+    );
+  }
+
   // Calculate overall balances using the new utility function
   const overallBalances = calculateOverallBalances(
     currentUser,
@@ -685,6 +694,7 @@ export const SettleUp: React.FC = () => {
                         </span>
                       </div>
                     ))}
+                
                   {selectedUserDebtsOwedTo &&
                     selectedUserDebtsOwedTo.individualDebt > 0.01 && (
                       <div className="flex justify-between text-sm">

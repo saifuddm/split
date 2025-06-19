@@ -10,6 +10,15 @@ export const ActivityFeed: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser, groups, expenses } = useAppStore();
   
+  // Early return if currentUser is null
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-base text-text flex items-center justify-center">
+        <p>Loading user data...</p>
+      </div>
+    );
+  }
+  
   // Get all settlement transactions, sorted by date (newest first)
   const settlementTransactions = expenses
     .filter(expense => expense.isSettlement)

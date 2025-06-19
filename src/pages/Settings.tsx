@@ -1,19 +1,24 @@
 import React, { useState } from 'react';
-import { ArrowLeft, UserPlus, Mail, User as UserIcon } from 'lucide-react';
+import { ArrowLeft, UserPlus, Mail, User as UserIcon, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../data/useAppStore';
 import { useStore } from '../data/store';
+import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/Button';
 import { Switch } from '../components/Switch';
 import { Avatar } from '../components/Avatar';
 import { Card } from '../components/Card';
 
 export const Settings: React.FC = () => {
+  const navigate = useNavigate();
   const { currentUser, users, isLoading, error, actions } = useAppStore();
   const { isDark, toggleDarkMode } = useStore();
+  const { signOut } = useAuth();
   const [paymentMessage, setPaymentMessage] = useState(currentUser?.paymentMessage || '');
   const [isInviting, setIsInviting] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserName, setNewUserName] = useState('');
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   // Get all users except the current user
   const otherUsers = users.filter(user => user.id !== currentUser?.id);
@@ -47,6 +52,17 @@ export const Settings: React.FC = () => {
     setIsInviting(false);
   };
 
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    try {
+      await signOut();
+      navigate('/login');
+    } catch (err) {
+      console.error('Failed to sign out:', err);
+      setIsSigningOut(false);
+    }
+  };
+
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-base text-text flex items-center justify-center">
@@ -63,7 +79,7 @@ export const Settings: React.FC = () => {
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => window.history.back()}
+            onClick={() => navigate('/dashboard')}
             className="p-2"
           >
             <ArrowLeft size={20} />
@@ -268,6 +284,21 @@ export const Settings: React.FC = () => {
                 onChange={toggleDarkMode}
               />
             </div>
+          </div>
+
+          {/* Account Section */}
+          <div className="bg-mantle rounded-lg p-4 border border-surface0">
+            <h2 className="text-lg font-semibold mb-4">Account</h2>
+            
+            <Button
+              onClick={handleSignOut}
+              variant="destructive"
+              disabled={isSigningOut}
+              className="flex items-center gap-2 w-full justify-center"
+            >
+              <LogOut size={16} />
+              {isSigningOut ? 'Signing Out...' : 'Sign Out'}
+            </Button>
           </div>
 
           {/* App Information */}

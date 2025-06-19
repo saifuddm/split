@@ -33,8 +33,10 @@ export const CreateGroup: React.FC = () => {
       // First, invite the user by email
       await actions.inviteUserByEmail(newMemberEmail.trim());
       
+      // Reload data to get the newly invited user
+      await actions.loadInitialData();
+      
       // Find the newly invited user and add them to selected members
-      const updatedUsers = await actions.loadInitialData();
       const invitedUser = users.find(user => user.email === newMemberEmail.trim());
       
       if (invitedUser && !selectedMembers.some(m => m.id === invitedUser.id)) {

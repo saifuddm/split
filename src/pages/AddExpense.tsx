@@ -23,7 +23,7 @@ export const AddExpense: React.FC = () => {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState(groupId || '');
-  const [paidBy, setPaidBy] = useState<User>(currentUser);
+  const [paidBy, setPaidBy] = useState<User | null>(null);
   const [isAdvanced, setIsAdvanced] = useState(false);
   const [selectedParticipants, setSelectedParticipants] = useState<User[]>([]);
   const [splitMethod, setSplitMethod] = useState<SplitMethod>('equally');
@@ -32,6 +32,15 @@ export const AddExpense: React.FC = () => {
   const [isOwedFullAmount, setIsOwedFullAmount] = useState(false);
   const [expenseType, setExpenseType] = useState<'group' | 'individual'>('group');
   
+  // Early return if currentUser is null
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-base text-text flex items-center justify-center">
+        <p>Loading user data...</p>
+      </div>
+    );
+  }
+
   const selectedGroup = groups.find(g => g.id === selectedGroupId);
   const isEditMode = editingExpenseId !== null;
   const editingExpense = isEditMode ? expenses.find(e => e.id === editingExpenseId) : null;
@@ -92,11 +101,11 @@ export const AddExpense: React.FC = () => {
   
   // Memoized participants who will actually split the cost
   const participantsToSplit = useMemo(() => {
-    if (isOwedFullAmount && paidBy.id === currentUser.id) {
+    if (isOwedFullAmount && paidBy?.id === currentUser.id) {
       return selectedParticipants.filter(p => p.id !== currentUser.id);
     }
     return selectedParticipants;
-  }, [isOwedFullAmount, paidBy.id, selectedParticipants, currentUser.id]);
+  }, [isOwedFullAmount, paidBy?.id, selectedParticipants, currentUser.id]);
   
   // Handle preselected user logic
   useEffect(() => {
@@ -156,10 +165,17 @@ export const AddExpense: React.FC = () => {
     }
   }, [isEditMode, editingExpense]);
   
+  // Initialize paidBy if not set
+  useEffect(() => {
+    if (!paidBy && paidByOptions.length > 0) {
+      setPaidBy(paidByOptions.find(option => option.id === currentUser.id) || paidByOptions[0]);
+    }
+  }, [paidBy, paidByOptions, currentUser.id]);
+  
   // Update paidBy and participants when group changes
   useEffect(() => {
     if (selectedGroup) {
-      if (!selectedGroup.members.find(m => m.id === paidBy.id)) {
+      if (!paidBy || !selectedGroup.members.find(m => m.id === paidBy.id)) {
         setPaidBy(currentUser);
       }
       // In simple mode, all members are participants (excluding invited users)
@@ -170,7 +186,7 @@ export const AddExpense: React.FC = () => {
         setSelectedParticipants(selectedGroup.members.filter(member => !member.isInvited));
       }
     }
-  }, [selectedGroupId, selectedGroup, paidBy.id, isAdvanced, isEditMode, currentUser]);
+  }, [selectedGroupId, selectedGroup, paidBy?.id, isAdvanced, isEditMode, currentUser]);
   
   // Reset advanced settings when switching modes
   useEffect(() => {
@@ -267,7 +283,7 @@ export const AddExpense: React.FC = () => {
   };
   
   const handleSave = () => {
-    if (!description.trim() || !amount) {
+    if (!description.trim() || !amount || !paidBy) {
       return;
     }
     
@@ -341,6 +357,7 @@ export const AddExpense: React.FC = () => {
                      parseFloat(amount) > 0 && 
                      selectedParticipants.length > 0 &&
                      validation.isValid &&
+                     paidBy &&
                      (selectedGroupId || isNonGroupMode || (isEditMode && !editingExpense?.groupId)); // Allow saving if we have a group OR we're in non-group mode OR editing a non-group expense
   
   return (
@@ -515,7 +532,7 @@ export const AddExpense: React.FC = () => {
                       type="radio"
                       name="paidBy"
                       value={member.id}
-                      checked={paidBy.id === member.id}
+                      checked={paidBy?.id === member.id}
                       onChange={() => setPaidBy(member)}
                       className="text-blue focus:ring-blue"
                     />
@@ -528,7 +545,7 @@ export const AddExpense: React.FC = () => {
               </div>
               
               {/* Owed Full Amount Option */}
-              {paidBy.id === currentUser.id && isAdvanced && (
+              {paidBy?.id === currentUser.id && isAdvanced && (
                 <div className="mt-3 p-3 bg-surface0 rounded-lg">
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input

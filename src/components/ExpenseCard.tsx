@@ -16,6 +16,11 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense }) => {
   const { currentUser, actions } = useAppStore();
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // Early return if currentUser is null
+  if (!currentUser) {
+    return null;
+  }
+
   const handleToggleExpense = () => {
     setIsExpanded((prev) => !prev);
   };

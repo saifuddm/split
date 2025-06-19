@@ -156,7 +156,7 @@ export const getUserGroups = async (): Promise<Group[]> => {
 
     groups.push({
       id: groupId,
-      name: membership.groups.name,
+      name: (membership as any).groups.name,
       members: groupMembers,
     });
   }

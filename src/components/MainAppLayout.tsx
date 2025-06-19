@@ -13,7 +13,7 @@ import { IndividualExpensesPage } from '../pages/IndividualExpensesPage';
 
 export const MainAppLayout: React.FC = () => {
   const { user } = useAuth();
-  const { loading, actions } = useAppStore();
+  const { isLoading, actions } = useAppStore();
 
   // Load initial data when the user is authenticated
   useEffect(() => {
@@ -23,7 +23,7 @@ export const MainAppLayout: React.FC = () => {
   }, [user, actions]);
 
   // Show loading spinner while data is being fetched
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-base text-text flex items-center justify-center">
         <div className="text-center">

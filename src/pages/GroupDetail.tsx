@@ -13,6 +13,15 @@ export const GroupDetail: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser, groups, expenses } = useAppStore();
   
+  // Early return if currentUser is null
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-base text-text flex items-center justify-center">
+        <p>Loading user data...</p>
+      </div>
+    );
+  }
+  
   const group = groups.find(g => g.id === groupId);
   const groupExpenses = expenses.filter(exp => exp.groupId === groupId);
   

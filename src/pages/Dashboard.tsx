@@ -13,6 +13,15 @@ export const Dashboard: React.FC = () => {
   const { currentUser, users, groups, expenses, actions } = useAppStore();
   const navigate = useNavigate();
 
+  // Early return if currentUser is null
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-base text-text flex items-center justify-center">
+        <p>Loading user data...</p>
+      </div>
+    );
+  }
+
   // Calculate overall balances using the utility function
   const overallBalances: { [userId: string]: number } = {};
   users.forEach(user => {
