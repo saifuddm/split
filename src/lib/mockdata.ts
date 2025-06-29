@@ -1,7 +1,7 @@
 // src/lib/mockData.ts
 import type { User, Group, Expense, IndividualExpense, Settlement, GroupExpense } from "./types";
 
-export const currentUser: User = { id: "user-1", name: "You" };
+export const currentUser: User = { id: "user-1", name: "Murtaza", contacts: ["user-2", "user-3", "user-4"] };
 
 export const users: User[] = [
   currentUser,
@@ -10,6 +10,7 @@ export const users: User[] = [
     name: "Alice",
     avatarUrl: "https://i.pravatar.cc/48?u=2",
     paymentMessage: "Venmo: @alice-in-chains",
+    contacts: [currentUser.id, "user-3", "user-4"],
   },
   { id: "user-3", name: "Bob", avatarUrl: "https://i.pravatar.cc/48?u=3" },
   {
