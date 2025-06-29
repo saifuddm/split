@@ -4,9 +4,10 @@ import {
   groups as initialGroups,
   expenses as initialExpenses,
   users as initialUsers,
+  settlements as initialSettlements,
 } from "../lib/mockdata";
 import { generateAuditDetails } from "../lib/utils";
-import type { Group, Expense, User, AuditEntry } from "../lib/types";
+import type { Group, Expense, User, AuditEntry, Settlement } from "../lib/types";
 
 type Page = "dashboard" | "group-details" | "add-expense" | "create-group" | "settle-up" | "settings" | "activity" | "individual-expenses";
 
@@ -20,6 +21,7 @@ interface AppState {
   users: User[];
   groups: Group[];
   expenses: Expense[];
+  settlements: Settlement[];
   actions: {
     navigateTo: (page: Page, groupId?: string) => void;
     enterApp: () => void;
@@ -55,6 +57,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   users: initialUsers,
   groups: initialGroups,
   expenses: initialExpenses,
+  settlements: initialSettlements,
   actions: {
     navigateTo: (page, groupId) =>
       set({ currentPage: page, activeGroupId: groupId || null }),
@@ -84,13 +87,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
       set((state) => ({
         groups: [...state.groups, newGroup],
+        activeGroupId: newGroup.id, // Set the new group as active for navigation
       }));
-      // Navigate to the new group's page after creation
-      get().actions.navigateTo("group-details", newGroup.id);
     },
     startEditingExpense: (expenseId) => {
       set({ editingExpenseId: expenseId });
-      get().actions.navigateTo("add-expense", get().activeGroupId || undefined);
     },
     updateExpense: (expenseId, updatedData) => {
       const originalExpense = get().expenses.find(e => e.id === expenseId);
@@ -122,76 +123,52 @@ export const useAppStore = create<AppState>((set, get) => ({
     clearEditingExpense: () => {
       set({ editingExpenseId: null });
     },
-    recordSettlement: (payee, settlements) => {
-      const settlementExpenses: Expense[] = settlements.map(
-        ({ groupId, amount }) => {
-          const baseSettlement = {
-            id: `settlement-${Date.now()}-${Math.random()}`,
-            isSettlement: true,
-            description: `Payment to ${payee.name}`,
-            amount,
-            paidBy: get().currentUser, // You are the one paying
-            // The payee is the sole participant, "owing" the full amount back to you.
-            // This creates a negative debt for them, effectively cancelling your positive debt.
-            participants: [{ user: payee, share: amount }],
-            date: new Date().toISOString(),
-            history: [
-              {
-                actor: get().currentUser,
-                action: `paid ${payee.name} $${amount.toFixed(2)}`,
-                timestamp: new Date().toISOString(),
-              },
-            ],
-          };
-
-          // Only include groupId if it's not empty (for group settlements)
-          if (groupId) {
-            return { ...baseSettlement, groupId };
-          }
-
-          // For individual settlements, don't include groupId
-          return baseSettlement;
-        }
+    recordSettlement: (payee, settlementAmounts) => {
+      const newSettlements: Settlement[] = settlementAmounts.map(
+        ({ groupId, amount }) => ({
+          id: `settlement-${Date.now()}-${Math.random()}`,
+          groupId: groupId || undefined,
+          description: `Payment to ${payee.name}`,
+          amount,
+          paidBy: get().currentUser,
+          paidTo: payee,
+          date: new Date().toISOString(),
+          history: [
+            {
+              actor: get().currentUser,
+              action: `paid ${payee.name} $${amount.toFixed(2)}`,
+              timestamp: new Date().toISOString(),
+            },
+          ],
+        })
       );
 
       set(state => ({
-        expenses: [...state.expenses, ...settlementExpenses]
+        settlements: [...state.settlements, ...newSettlements]
       }));
     },
-    recordSettlementReverse: (payer, settlements) => {
-      const settlementExpenses: Expense[] = settlements.map(
-        ({ groupId, amount }) => {
-          const baseSettlement = {
-            id: `settlement-${Date.now()}-${Math.random()}`,
-            isSettlement: true,
-            description: `Payment from ${payer.name}`,
-            amount,
-            paidBy: payer, // The other user is paying
-            // The current user is the sole participant, "owing" the full amount back to the payer.
-            // This creates a negative debt for the current user, effectively cancelling the payer's positive debt.
-            participants: [{ user: get().currentUser, share: amount }],
-            date: new Date().toISOString(),
-            history: [
-              {
-                actor: get().currentUser,
-                action: `received $${amount.toFixed(2)} from ${payer.name}`,
-                timestamp: new Date().toISOString(),
-              },
-            ],
-          };
-
-          // Only include groupId if it's not empty (for group settlements)
-          if (groupId) {
-            return { ...baseSettlement, groupId };
-          }
-
-          // For individual settlements, don't include groupId
-          return baseSettlement;
-        }
+    recordSettlementReverse: (payer, settlementAmounts) => {
+      const newSettlements: Settlement[] = settlementAmounts.map(
+        ({ groupId, amount }) => ({
+          id: `settlement-${Date.now()}-${Math.random()}`,
+          groupId: groupId || undefined,
+          description: `Payment from ${payer.name}`,
+          amount,
+          paidBy: payer,
+          paidTo: get().currentUser,
+          date: new Date().toISOString(),
+          history: [
+            {
+              actor: get().currentUser,
+              action: `received $${amount.toFixed(2)} from ${payer.name}`,
+              timestamp: new Date().toISOString(),
+            },
+          ],
+        })
       );
 
       set(state => ({
-        expenses: [...state.expenses, ...settlementExpenses]
+        settlements: [...state.settlements, ...newSettlements]
       }));
     },
     setPreselectedUserForExpense: (userId) => {

@@ -1,5 +1,5 @@
 // src/lib/mockData.ts
-import type { User, Group, Expense, IndividualExpense, Settlement, GroupExpense } from "./types";
+import type { User, Group, Expense, IndividualExpense, Settlement, GroupExpense, ContactList } from "./types";
 
 export const currentUser: User = { id: "user-1", name: "You" };
 
@@ -20,20 +20,26 @@ export const users: User[] = [
   },
 ];
 
+// Contact list for current user - only Alice and Charlie are contacts
+export const currentUserContacts: ContactList = {
+  userId: currentUser.id,
+  contacts: [users[1], users[3]], // Alice and Charlie only
+};
+
 export const groups: Group[] = [
   {
     id: "group-1",
     name: "Trip to Bali",
-    members: [users[0], users[1], users[2]],
+    members: [users[0], users[1], users[2]], // You, Alice, Bob (Bob not in contacts but in group)
   },
   {
     id: "group-2",
     name: "Apartment Utilities",
-    members: [users[0], users[3]],
+    members: [users[0], users[3]], // You and Charlie
   },
 ];
 
-// Group expenses
+// Group expenses (can include non-contacts if they're in the group)
 const groupExpenses: GroupExpense[] = [
   {
     id: "exp-1",
@@ -44,7 +50,7 @@ const groupExpenses: GroupExpense[] = [
     participants: [
       { user: users[0], share: 300 }, // You owe 300
       { user: users[1], share: 300 }, // Alice paid 300 for herself
-      { user: users[2], share: 300 }, // Bob owes 300
+      { user: users[2], share: 300 }, // Bob owes 300 (not in contacts but in group)
     ],
     date: "2025-01-05T10:00:00Z",
     history: [
@@ -94,9 +100,29 @@ const groupExpenses: GroupExpense[] = [
       },
     ],
   },
+  {
+    id: "exp-6",
+    groupId: "group-1",
+    description: "Dance Club",
+    amount: 240,
+    paidBy: users[2], // Bob paid
+    participants: [
+      { user: users[0], share: 80 }, // You owe 80
+      { user: users[2], share: 80 }, // Bob paid 80 for himself
+      { user: users[1], share: 80 }, // Alice owes 80
+    ],
+    date: "2025-01-11T12:00:00Z",
+    history: [
+      {
+        actor: users[2], // Bob
+        action: "created this expense",
+        timestamp: "2025-01-11T12:00:00Z",
+      },
+    ],
+  }
 ];
 
-// Individual (non-group) expenses
+// Individual expenses (only with contacts: Alice and Charlie)
 const individualExpenses: IndividualExpense[] = [
   {
     id: "exp-4",
@@ -135,18 +161,18 @@ const individualExpenses: IndividualExpense[] = [
     ],
   },
   {
-    id: "exp-6",
+    id: "exp-7",
     description: "Movie Tickets",
     amount: 30,
-    paidBy: users[2], // Bob paid
+    paidBy: users[0], // You paid
     participants: [
-      { user: users[0], share: 15 }, // You owe 15
-      { user: users[2], share: 15 }, // Bob paid 15 for himself
+      { user: users[0], share: 15 }, // You paid 15 for yourself
+      { user: users[1], share: 15 }, // Alice owes 15
     ],
     date: "2025-01-14T20:00:00Z",
     history: [
       {
-        actor: users[2], // Bob
+        actor: users[0], // You
         action: "created this expense",
         timestamp: "2025-01-14T20:00:00Z",
       },
@@ -154,29 +180,66 @@ const individualExpenses: IndividualExpense[] = [
   },
 ];
 
-// Settlement transactions
-const settlements: Settlement[] = [
+// Settlements (separate from expenses) - can be with anyone you owe money to
+export const settlements: Settlement[] = [
   {
     id: "settlement-1",
-    isSettlement: true,
-    description: "Payment to Alice",
+    description: "Payment for coffee",
     amount: 6,
     paidBy: users[0], // You paid Alice
-    participants: [{ user: users[1], share: 6 }], // Alice received
+    paidTo: users[1], // Alice received
     date: "2025-01-15T16:00:00Z",
     history: [
       {
         actor: users[0],
-        action: "paid Alice $6.00",
+        action: "paid Alice $6.00 for coffee",
         timestamp: "2025-01-15T16:00:00Z",
+      },
+    ],
+  },
+  {
+    id: "settlement-2",
+    groupId: "group-1", // Group settlement
+    description: "Payment for Dance Club",
+    amount: 80,
+    paidBy: users[0], // You paid Bob
+    paidTo: users[2], // Bob received (not in contacts but you owe him from group expense)
+    date: "2025-01-16T10:00:00Z",
+    history: [
+      {
+        actor: users[0],
+        action: "paid Bob $80.00 for Dance Club",
+        timestamp: "2025-01-16T10:00:00Z",
       },
     ],
   },
 ];
 
-// Combine all expenses for the main export
+// Expenses only (no settlements)
 export const expenses: Expense[] = [
   ...groupExpenses,
   ...individualExpenses,
-  ...settlements,
 ];
+
+// Helper functions to get user by id
+export const getUserById = (id: string): User | undefined => {
+  return users.find(user => user.id === id);
+};
+
+// Helper function to get group by id
+export const getGroupById = (id: string): Group | undefined => {
+  return groups.find(group => group.id === id);
+};
+
+// Helper function to check if a user is in current user's contacts
+export const isUserInContacts = (userId: string): boolean => {
+  return currentUserContacts.contacts.some(contact => contact.id === userId);
+};
+
+// Helper function to get shared groups between current user and another user
+export const getSharedGroups = (userId: string): Group[] => {
+  return groups.filter(group =>
+    group.members.some(member => member.id === currentUser.id) &&
+    group.members.some(member => member.id === userId)
+  );
+};

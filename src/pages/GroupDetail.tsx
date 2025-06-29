@@ -1,43 +1,49 @@
-import React from 'react';
-import { ArrowLeft, Plus, Handshake } from 'lucide-react';
-import { useAppStore } from '../data/useAppStore';
-import { calculateSimplifiedDebts } from '../lib/utils';
-import { Card } from '../components/Card';
-import { Button } from '../components/Button';
-import { Avatar } from '../components/Avatar';
-import { ExpenseCard } from '../components/ExpenseCard';
+import React from "react";
+import { ArrowLeft, Plus, Handshake } from "lucide-react";
+import { useNavigate, useParams } from "@tanstack/react-router";
+import { useAppStore } from "../data/useAppStore";
+import { calculateSimplifiedDebts } from "../lib/utils";
+import { Card } from "../components/Card";
+import { Button } from "../components/Button";
+import { Avatar } from "../components/Avatar";
+import { ExpenseCard } from "../components/ExpenseCard";
 
 export const GroupDetail: React.FC = () => {
-  const { activeGroupId, currentUser, groups, expenses, actions } = useAppStore();
-  
-  const group = groups.find(g => g.id === activeGroupId);
-  const groupExpenses = expenses.filter(exp => exp.groupId === activeGroupId);
-  
+  const { groupId } = useParams({ from: "/groups/$groupId" });
+  const { currentUser, groups, expenses, actions } = useAppStore();
+  const navigate = useNavigate();
+
+  const group = groups.find((g) => g.id === groupId);
+  const groupExpenses = expenses.filter((exp) => exp.groupId === groupId);
+
   if (!group) {
     return (
-      <div className="min-h-screen bg-base text-text p-4">
-        <div className="max-w-md mx-auto">
+      <div className="bg-base text-text min-h-screen p-4">
+        <div className="mx-auto max-w-md">
           <p>Group not found</p>
-          <Button onClick={() => actions.navigateTo('dashboard')}>
+          <Button onClick={() => navigate({ to: "/dashboard" })}>
             Back to Dashboard
           </Button>
         </div>
       </div>
     );
   }
-  
-  const simplifiedDebts = calculateSimplifiedDebts(group.members, groupExpenses);
-  
+
+  const simplifiedDebts = calculateSimplifiedDebts(
+    group.members,
+    groupExpenses,
+  );
+
   return (
-    <div className="min-h-screen bg-base text-text">
+    <div className="bg-base text-text min-h-screen">
       {/* Header */}
-      <div className="bg-mantle border-b border-surface0 p-4">
-        <div className="max-w-md mx-auto flex items-center justify-between">
+      <div className="bg-mantle border-surface0 border-b p-4">
+        <div className="mx-auto flex max-w-md items-center justify-between">
           <div className="flex items-center gap-3">
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => actions.navigateTo('dashboard')}
+              onClick={() => navigate({ to: "/dashboard" })}
               className="p-2"
             >
               <ArrowLeft size={20} />
@@ -48,14 +54,16 @@ export const GroupDetail: React.FC = () => {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => actions.navigateTo('settle-up')}
+              onClick={() => navigate({ to: "/settle-up" })}
               className="p-2"
             >
               <Handshake size={20} />
             </Button>
             <Button
               size="sm"
-              onClick={() => actions.navigateTo('add-expense', activeGroupId || undefined)}
+              onClick={() => {
+                navigate({ to: "/add-expense" });
+              }}
               className="p-2"
             >
               <Plus size={20} />
@@ -63,15 +71,17 @@ export const GroupDetail: React.FC = () => {
           </div>
         </div>
       </div>
-      
-      <div className="max-w-md mx-auto p-4">
+
+      <div className="mx-auto max-w-md p-4">
         {/* Simplified Debts Section */}
         <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-4">Who Owes Who</h2>
+          <h2 className="mb-4 text-lg font-semibold">Who Owes Who</h2>
           <div className="space-y-3">
             {simplifiedDebts.length === 0 ? (
               <Card>
-                <p className="text-center text-subtext1">Everyone is settled up!</p>
+                <p className="text-subtext1 text-center">
+                  Everyone is settled up!
+                </p>
               </Card>
             ) : (
               simplifiedDebts.map(({ debtor, creditor, amount }, index) => (
@@ -84,8 +94,8 @@ export const GroupDetail: React.FC = () => {
                       </span>
                     </div>
                     <div className="flex flex-col items-center">
-                      <span className="text-sm text-subtext1">owes</span>
-                      <span className="font-semibold text-red">
+                      <span className="text-subtext1 text-sm">owes</span>
+                      <span className="text-red font-semibold">
                         ${amount.toFixed(2)}
                       </span>
                     </div>
@@ -101,17 +111,17 @@ export const GroupDetail: React.FC = () => {
             )}
           </div>
         </div>
-        
+
         {/* Expenses Section */}
         <div>
-          <h2 className="text-lg font-semibold mb-4">Expenses</h2>
+          <h2 className="mb-4 text-lg font-semibold">Expenses</h2>
           <div className="space-y-3">
             {groupExpenses.length === 0 ? (
               <Card>
-                <p className="text-center text-subtext1">No expenses yet</p>
+                <p className="text-subtext1 text-center">No expenses yet</p>
               </Card>
             ) : (
-              groupExpenses.map(expense => (
+              groupExpenses.map((expense) => (
                 <ExpenseCard key={expense.id} expense={expense} />
               ))
             )}

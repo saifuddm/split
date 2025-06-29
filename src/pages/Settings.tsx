@@ -1,56 +1,62 @@
-import React, { useState } from 'react';
-import { ArrowLeft, UserPlus } from 'lucide-react';
-import { useAppStore } from '../data/useAppStore';
-import { useStore } from '../data/store';
-import { Button } from '../components/Button';
-import { Switch } from '../components/Switch';
-import { Avatar } from '../components/Avatar';
-import { Card } from '../components/Card';
+import React, { useState } from "react";
+import { ArrowLeft, User, Mail, Smartphone } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { useAppStore } from "../data/useAppStore";
+import { useStore } from "../data/store";
+import { Button } from "../components/Button";
+import { Switch } from "../components/Switch";
+import { Avatar } from "../components/Avatar";
+import { Card } from "../components/Card";
 
 export const Settings: React.FC = () => {
   const { currentUser, users, actions } = useAppStore();
   const { isDark, toggleDarkMode } = useStore();
-  const [paymentMessage, setPaymentMessage] = useState(currentUser.paymentMessage || '');
+  const [paymentMessage, setPaymentMessage] = useState(
+    currentUser.paymentMessage || "",
+  );
   const [isInviting, setIsInviting] = useState(false);
-  const [newUserName, setNewUserName] = useState('');
+  const [newUserName, setNewUserName] = useState("");
+  const navigate = useNavigate();
 
   // Get all users except the current user
-  const otherUsers = users.filter(user => user.id !== currentUser.id);
+  const otherUsers = users.filter((user) => user.id !== currentUser.id);
 
   const handleSavePaymentMessage = () => {
-    actions.updateCurrentUser({ paymentMessage: paymentMessage.trim() || undefined });
+    actions.updateCurrentUser({
+      paymentMessage: paymentMessage.trim() || undefined,
+    });
   };
 
   const handleBack = () => {
     // Save payment message before leaving if it's different
-    if (paymentMessage.trim() !== (currentUser.paymentMessage || '')) {
+    if (paymentMessage.trim() !== (currentUser.paymentMessage || "")) {
       handleSavePaymentMessage();
     }
-    actions.navigateTo('dashboard');
+    navigate({ to: "/dashboard" });
   };
 
   const handleInviteUser = () => {
     if (newUserName.trim()) {
       actions.addUser(newUserName.trim());
-      setNewUserName('');
+      setNewUserName("");
       setIsInviting(false);
     }
   };
 
   const handleCancelInvite = () => {
-    setNewUserName('');
+    setNewUserName("");
     setIsInviting(false);
   };
 
   return (
-    <div className="min-h-screen bg-base text-text">
+    <div className="bg-base text-text min-h-screen">
       {/* Header */}
-      <div className="bg-mantle border-b border-surface0 p-4">
-        <div className="max-w-md mx-auto flex items-center gap-3">
+      <div className="bg-mantle border-surface0 border-b p-4">
+        <div className="mx-auto flex max-w-md items-center gap-3">
           <Button
             variant="secondary"
             size="sm"
-            onClick={handleBack}
+            onClick={() => navigate({ to: "/dashboard" })}
             className="p-2"
           >
             <ArrowLeft size={20} />
@@ -59,30 +65,33 @@ export const Settings: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-w-md mx-auto p-4">
+      <div className="mx-auto max-w-md p-4">
         <div className="space-y-6">
           {/* User Profile Section */}
-          <div className="bg-mantle rounded-lg p-4 border border-surface0">
-            <h2 className="text-lg font-semibold mb-4">Profile</h2>
-            
-            <div className="flex items-center gap-4 mb-4">
+          <div className="bg-mantle border-surface0 rounded-lg border p-4">
+            <h2 className="mb-4 text-lg font-semibold">Profile</h2>
+
+            <div className="mb-4 flex items-center gap-4">
               <Avatar user={currentUser} size="lg" />
               <div>
-                <h3 className="font-medium text-lg">{currentUser.name}</h3>
-                <p className="text-sm text-subtext1">Your profile</p>
+                <h3 className="text-lg font-medium">{currentUser.name}</h3>
+                <p className="text-subtext1 text-sm">Your profile</p>
               </div>
             </div>
           </div>
 
           {/* Payment Information Section */}
-          <div className="bg-mantle rounded-lg p-4 border border-surface0">
-            <h2 className="text-lg font-semibold mb-4">Your Payment Info</h2>
-            <p className="text-sm text-subtext1 mb-3">
+          <div className="bg-mantle border-surface0 rounded-lg border p-4">
+            <h2 className="mb-4 text-lg font-semibold">Your Payment Info</h2>
+            <p className="text-subtext1 mb-3 text-sm">
               Add your payment details so friends know how to pay you back
             </p>
-            
+
             <div className="space-y-3">
-              <label htmlFor="paymentMessage" className="block text-sm font-medium">
+              <label
+                htmlFor="paymentMessage"
+                className="block text-sm font-medium"
+              >
                 Payment Method
               </label>
               <textarea
@@ -91,17 +100,23 @@ export const Settings: React.FC = () => {
                 onChange={(e) => setPaymentMessage(e.target.value)}
                 placeholder="e.g., Venmo: @your-username, CashApp: $your-handle, or Zelle: your-email@example.com"
                 rows={3}
-                className="w-full px-3 py-2 bg-base border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent resize-none"
+                className="bg-base border-surface0 focus:ring-blue w-full resize-none rounded-lg border px-3 py-2 focus:border-transparent focus:ring-2 focus:outline-none"
               />
-              <p className="text-xs text-subtext0">
+              <p className="text-subtext0 text-xs">
                 This will be shown to others when they need to pay you
               </p>
-              
+
               <Button
                 onClick={handleSavePaymentMessage}
                 size="sm"
-                disabled={paymentMessage.trim() === (currentUser.paymentMessage || '')}
-                className={paymentMessage.trim() === (currentUser.paymentMessage || '') ? 'opacity-50 cursor-not-allowed' : ''}
+                disabled={
+                  paymentMessage.trim() === (currentUser.paymentMessage || "")
+                }
+                className={
+                  paymentMessage.trim() === (currentUser.paymentMessage || "")
+                    ? "cursor-not-allowed opacity-50"
+                    : ""
+                }
               >
                 Save Payment Info
               </Button>
@@ -109,24 +124,27 @@ export const Settings: React.FC = () => {
           </div>
 
           {/* All Users Section */}
-          <div className="bg-mantle rounded-lg p-4 border border-surface0">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-mantle border-surface0 rounded-lg border p-4">
+            <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">All Users</h2>
               <Button
                 onClick={() => setIsInviting(true)}
                 size="sm"
                 className="flex items-center gap-2"
               >
-                <UserPlus size={16} />
+                <User size={16} />
                 Invite User
               </Button>
             </div>
 
             {/* Invite User Form */}
             {isInviting && (
-              <div className="mb-4 p-3 bg-surface0 rounded-lg">
+              <div className="bg-surface0 mb-4 rounded-lg p-3">
                 <div className="space-y-3">
-                  <label htmlFor="newUserName" className="block text-sm font-medium">
+                  <label
+                    htmlFor="newUserName"
+                    className="block text-sm font-medium"
+                  >
                     User Name
                   </label>
                   <input
@@ -135,11 +153,11 @@ export const Settings: React.FC = () => {
                     value={newUserName}
                     onChange={(e) => setNewUserName(e.target.value)}
                     placeholder="Enter user's name"
-                    className="w-full px-3 py-2 bg-mantle border border-surface0 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue focus:border-transparent"
+                    className="bg-mantle border-surface0 focus:ring-blue w-full rounded-lg border px-3 py-2 focus:border-transparent focus:ring-2 focus:outline-none"
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
+                      if (e.key === "Enter") {
                         handleInviteUser();
-                      } else if (e.key === 'Escape') {
+                      } else if (e.key === "Escape") {
                         handleCancelInvite();
                       }
                     }}
@@ -150,7 +168,11 @@ export const Settings: React.FC = () => {
                       onClick={handleInviteUser}
                       size="sm"
                       disabled={!newUserName.trim()}
-                      className={!newUserName.trim() ? 'opacity-50 cursor-not-allowed' : ''}
+                      className={
+                        !newUserName.trim()
+                          ? "cursor-not-allowed opacity-50"
+                          : ""
+                      }
                     >
                       Save
                     </Button>
@@ -169,18 +191,20 @@ export const Settings: React.FC = () => {
             {/* Users List */}
             <div className="space-y-2">
               {otherUsers.length === 0 ? (
-                <p className="text-center text-subtext1 py-4">
+                <p className="text-subtext1 py-4 text-center">
                   No other users yet. Invite someone to get started!
                 </p>
               ) : (
-                otherUsers.map(user => (
+                otherUsers.map((user) => (
                   <Card key={user.id} className="p-3">
                     <div className="flex items-center gap-3">
                       <Avatar user={user} size="sm" />
                       <div>
                         <span className="font-medium">{user.name}</span>
                         {user.paymentMessage && (
-                          <p className="text-xs text-subtext1">{user.paymentMessage}</p>
+                          <p className="text-subtext1 text-xs">
+                            {user.paymentMessage}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -191,36 +215,38 @@ export const Settings: React.FC = () => {
           </div>
 
           {/* Theme Section */}
-          <div className="bg-mantle rounded-lg p-4 border border-surface0">
-            <h2 className="text-lg font-semibold mb-4">Appearance</h2>
-            
+          <div className="bg-mantle border-surface0 rounded-lg border p-4">
+            <h2 className="mb-4 text-lg font-semibold">Appearance</h2>
+
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-medium">Dark Mode</h3>
-                <p className="text-sm text-subtext1">
+                <p className="text-subtext1 text-sm">
                   Switch between light and dark themes
                 </p>
               </div>
-              <Switch
-                checked={isDark}
-                onChange={toggleDarkMode}
-              />
+              <Switch checked={isDark} onChange={toggleDarkMode} />
             </div>
           </div>
 
           {/* App Information */}
-          <div className="bg-mantle rounded-lg p-4 border border-surface0">
-            <h2 className="text-lg font-semibold mb-4">About</h2>
-            <div className="space-y-2 text-sm text-subtext1">
-              <p><span className="font-medium text-text">Version:</span> 1.1.0</p>
-              <p><span className="font-medium text-text">Built with:</span> React, TypeScript, Tailwind CSS</p>
+          <div className="bg-mantle border-surface0 rounded-lg border p-4">
+            <h2 className="mb-4 text-lg font-semibold">About</h2>
+            <div className="text-subtext1 space-y-2 text-sm">
               <p>
-                <span className="font-medium text-text">Source:</span>{' '}
-                <a 
-                  href="https://github.com/saifuddm/split" 
-                  target="_blank" 
+                <span className="text-text font-medium">Version:</span> 1.1.0
+              </p>
+              <p>
+                <span className="text-text font-medium">Built with:</span>{" "}
+                React, TypeScript, Tailwind CSS
+              </p>
+              <p>
+                <span className="text-text font-medium">Source:</span>{" "}
+                <a
+                  href="https://github.com/saifuddm/split"
+                  target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue hover:text-sapphire transition-colors underline"
+                  className="text-blue hover:text-sapphire underline transition-colors"
                 >
                   GitHub
                 </a>

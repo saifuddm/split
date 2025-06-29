@@ -1,11 +1,18 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Spline, Scale, History } from 'lucide-react';
-import { useAppStore } from '../data/useAppStore';
-import { Button } from '../components/Button';
+import React from "react";
+import { motion } from "framer-motion";
+import { Spline, Scale, History } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { useAppStore } from "../data/useAppStore";
+import { Button } from "../components/Button";
 
 const HeroSection: React.FC = () => {
   const { actions } = useAppStore();
+  const navigate = useNavigate();
+
+  const handleLaunchApp = () => {
+    actions.enterApp(); // Still need to update the hasEnteredApp state
+    navigate({ to: "/dashboard" }); // Navigate to dashboard using TanStack Router
+  };
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -31,32 +38,33 @@ const HeroSection: React.FC = () => {
   };
 
   return (
-    <section className="min-h-screen flex items-center justify-center px-4">
+    <section className="flex min-h-screen items-center justify-center px-4">
       <motion.div
-        className="text-center max-w-4xl mx-auto"
+        className="mx-auto max-w-4xl text-center"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
       >
         <motion.h1
-          className="text-4xl md:text-6xl font-bold mb-6 text-text"
+          className="text-text mb-6 text-4xl font-bold md:text-6xl"
           variants={itemVariants}
         >
           Simplify Your Shared Expenses.
         </motion.h1>
-        
+
         <motion.p
-          className="text-xl md:text-2xl text-subtext1 mb-8 leading-relaxed max-w-3xl mx-auto"
+          className="text-subtext1 mx-auto mb-8 max-w-3xl text-xl leading-relaxed md:text-2xl"
           variants={itemVariants}
         >
-          From group trips to apartment bills, track every dollar without the awkward conversations. Split makes it easy.
+          From group trips to apartment bills, track every dollar without the
+          awkward conversations. Split makes it easy.
         </motion.p>
-        
+
         <motion.div variants={itemVariants}>
           <Button
-            onClick={actions.enterApp}
+            onClick={handleLaunchApp}
             size="lg"
-            className="text-xl px-8 py-4 shadow-lg hover:shadow-xl transition-all duration-300"
+            className="px-8 py-4 text-xl shadow-lg transition-all duration-300 hover:shadow-xl"
           >
             Launch App
           </Button>
@@ -74,7 +82,7 @@ const FeatureCard: React.FC<{
 }> = ({ icon, title, description, index }) => {
   return (
     <motion.div
-      className="bg-mantle rounded-lg p-6 shadow-sm border border-surface0"
+      className="bg-mantle border-surface0 rounded-lg border p-6 shadow-sm"
       initial={{ opacity: 0, y: 50 }}
       whileInView={{ opacity: 1, y: 0 }}
       transition={{
@@ -84,10 +92,8 @@ const FeatureCard: React.FC<{
       }}
       viewport={{ once: true, margin: "-100px" }}
     >
-      <div className="text-blue mb-4 flex justify-center">
-        {icon}
-      </div>
-      <h3 className="text-xl font-semibold mb-3 text-text">{title}</h3>
+      <div className="text-blue mb-4 flex justify-center">{icon}</div>
+      <h3 className="text-text mb-3 text-xl font-semibold">{title}</h3>
       <p className="text-subtext1 leading-relaxed">{description}</p>
     </motion.div>
   );
@@ -98,25 +104,28 @@ const FeaturesSection: React.FC = () => {
     {
       icon: <Spline size={32} />,
       title: "Split Any Way You Want",
-      description: "Go beyond 50/50. Split by exact amounts, percentages, or select specific people for each transaction.",
+      description:
+        "Go beyond 50/50. Split by exact amounts, percentages, or select specific people for each transaction.",
     },
     {
       icon: <Scale size={32} />,
       title: "Always Know Who Owes Who",
-      description: "Get a simplified, real-time view of your balances within groups and with individual friends.",
+      description:
+        "Get a simplified, real-time view of your balances within groups and with individual friends.",
     },
     {
       icon: <History size={32} />,
       title: "Track Every Change",
-      description: "Every expense edit and settlement is recorded in a detailed audit trail, so there are no surprises.",
+      description:
+        "Every expense edit and settlement is recorded in a detailed audit trail, so there are no surprises.",
     },
   ];
 
   return (
-    <section className="py-20 px-4">
-      <div className="max-w-6xl mx-auto">
+    <section className="px-4 py-20">
+      <div className="mx-auto max-w-6xl">
         <motion.h2
-          className="text-3xl md:text-4xl font-bold text-center mb-16 text-text"
+          className="text-text mb-16 text-center text-3xl font-bold md:text-4xl"
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
@@ -124,8 +133,8 @@ const FeaturesSection: React.FC = () => {
         >
           Everything you need to stay balanced.
         </motion.h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
           {features.map((feature, index) => (
             <FeatureCard
               key={index}
@@ -144,19 +153,19 @@ const FeaturesSection: React.FC = () => {
 const Footer: React.FC = () => {
   return (
     <motion.footer
-      className="py-8 px-4 text-center"
+      className="px-4 py-8 text-center"
       initial={{ opacity: 0 }}
       whileInView={{ opacity: 1 }}
       transition={{ duration: 0.8 }}
       viewport={{ once: true }}
     >
       <p className="text-subtext1">
-        Made with ❤️ by{' '}
+        Made with ❤️ by{" "}
         <a
           href="https://github.com/saifuddm"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue hover:text-sapphire transition-colors underline"
+          className="text-blue hover:text-sapphire underline transition-colors"
         >
           saifuddm
         </a>
@@ -167,7 +176,7 @@ const Footer: React.FC = () => {
 
 export const LandingPage: React.FC = () => {
   return (
-    <div className="min-h-screen bg-base text-text">
+    <div className="bg-base text-text min-h-screen">
       <HeroSection />
       <FeaturesSection />
       <Footer />

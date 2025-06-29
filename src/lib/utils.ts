@@ -17,24 +17,16 @@ export const calculateSimplifiedDebts = (members: User[], expenses: Expense[]): 
 
   // Calculate balances from expenses
   expenses.forEach(expense => {
-    if (expense.isSettlement) {
-      // Special logic for settlement transactions
-      // The payer's balance increases (moves closer to zero from negative)
-      balances[expense.paidBy.id] += expense.amount;
-      // The payee's balance decreases (moves closer to zero from positive)
-      balances[expense.participants[0].user.id] -= expense.amount;
-    } else {
-      // Existing logic for regular expenses
-      expense.participants.forEach(participant => {
-        if (expense.paidBy.id === participant.user.id) {
-          // This person paid, so they are owed the difference
-          balances[participant.user.id] += expense.amount - participant.share;
-        } else {
-          // This person didn't pay, so they owe their share
-          balances[participant.user.id] -= participant.share;
-        }
-      });
-    }
+    // Process regular expenses only (settlements are handled separately)
+    expense.participants.forEach(participant => {
+      if (expense.paidBy.id === participant.user.id) {
+        // This person paid, so they are owed the difference
+        balances[participant.user.id] += expense.amount - participant.share;
+      } else {
+        // This person didn't pay, so they owe their share
+        balances[participant.user.id] -= participant.share;
+      }
+    });
   });
 
   // Create arrays of debtors and creditors
@@ -128,15 +120,6 @@ export const calculateNetBalanceBetweenTwoUsers = (
     // Must not be a group expense
     if (exp.groupId) return false;
 
-    // For settlements, check if it's between these two users
-    if (exp.isSettlement) {
-      const recipient = exp.participants[0]?.user;
-      return (
-        (exp.paidBy.id === currentUser.id && recipient?.id === otherUser.id) ||
-        (exp.paidBy.id === otherUser.id && recipient?.id === currentUser.id)
-      );
-    }
-
     // For regular expenses, check if both users are participants
     return (
       exp.participants.length === 2 &&
@@ -146,32 +129,16 @@ export const calculateNetBalanceBetweenTwoUsers = (
   });
 
   individualTransactions.forEach(expense => {
-    if (expense.isSettlement) {
-      // Handle settlement transactions
-      // In a settlement, the payer is settling their debt to the recipient
-      const recipient = expense.participants[0]?.user;
+    // Handle regular expenses (settlements are handled separately)
+    const currentUserParticipant = expense.participants.find(p => p.user.id === currentUser.id);
 
-      if (expense.paidBy.id === currentUser.id && recipient?.id === otherUser.id) {
-        // Current user paid the other user (settling debt)
-        // This reduces what current user owes, so it's positive for current user's balance
-        netBalance += expense.amount;
-      } else if (expense.paidBy.id === otherUser.id && recipient?.id === currentUser.id) {
-        // Other user paid the current user (settling debt)
-        // This reduces what other user owes, so it's negative for current user's balance
-        netBalance -= expense.amount;
-      }
-    } else {
-      // Handle regular expenses
-      const currentUserParticipant = expense.participants.find(p => p.user.id === currentUser.id);
-
-      if (currentUserParticipant) {
-        if (expense.paidBy.id === currentUser.id) {
-          // Current user paid, so they are owed the difference
-          netBalance += expense.amount - currentUserParticipant.share;
-        } else {
-          // Current user didn't pay, so they owe their share
-          netBalance -= currentUserParticipant.share;
-        }
+    if (currentUserParticipant) {
+      if (expense.paidBy.id === currentUser.id) {
+        // Current user paid, so they are owed the difference
+        netBalance += expense.amount - currentUserParticipant.share;
+      } else {
+        // Current user didn't pay, so they owe their share
+        netBalance -= currentUserParticipant.share;
       }
     }
   });
@@ -275,44 +242,69 @@ export const calculateGroupBalance = (
   expenses: Expense[]
 ): number => {
   let balance = 0;
-  group.members.forEach((member) => {
-    if (member.id !== currentUser.id) {
-      const groupExpenses = expenses.filter((exp) => exp.groupId === group.id);
-      const netBalance = calculateNetBalanceBetweenTwoUsers(
-        currentUser,
-        member,
-        [group],
-        groupExpenses,
+
+  // Only process expenses for this specific group
+  const groupExpenses = expenses.filter((exp) => exp.groupId === group.id);
+
+  groupExpenses.forEach((expense) => {
+    if (expense.paidBy.id === currentUser.id) {
+      // Current user paid - others owe them
+      expense.participants.forEach((participant) => {
+        if (participant.user.id !== currentUser.id) {
+          balance += participant.share;
+        }
+      });
+    } else {
+      // Someone else paid - current user might owe them
+      const currentUserParticipation = expense.participants.find(
+        (p) => p.user.id === currentUser.id,
       );
-      balance += netBalance;
+      if (currentUserParticipation) {
+        balance -= currentUserParticipation.share;
+      }
     }
   });
+
   return balance;
 };
 
 // New utility function to calculate individual balances for all users
 export const calculateIndividualBalances = (
   currentUser: User,
-  allUsers: User[],
-  allExpenses: Expense[]
+  users: User[],
+  expenses: Expense[],
 ): { [userId: string]: number } => {
   const balances: { [userId: string]: number } = {};
 
-  allUsers.forEach((user) => {
-    if (user.id !== currentUser.id) {
-      balances[user.id] = calculateNetBalanceBetweenTwoUsers(
-        currentUser,
-        user,
-        [], // Empty groups array for individual transactions only
-        allExpenses,
+  // Initialize balances for all users
+  users.forEach((user) => {
+    balances[user.id] = 0;
+  });
+
+  // Only process non-group expenses
+  const individualExpenses = expenses.filter((expense) => !expense.groupId);
+
+  individualExpenses.forEach((expense) => {
+    if (expense.paidBy.id === currentUser.id) {
+      // Current user paid - others owe them
+      expense.participants.forEach((participant) => {
+        if (participant.user.id !== currentUser.id) {
+          balances[participant.user.id] += participant.share;
+        }
+      });
+    } else {
+      // Someone else paid - current user might owe them
+      const currentUserParticipation = expense.participants.find(
+        (p) => p.user.id === currentUser.id,
       );
+      if (currentUserParticipation) {
+        balances[expense.paidBy.id] -= currentUserParticipation.share;
+      }
     }
   });
 
   return balances;
 };
-
-
 
 // New utility function to calculate overall balances for all users
 export const calculateOverallBalances = (

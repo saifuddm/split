@@ -7,6 +7,7 @@ import {
   List,
 } from "lucide-react";
 import { useAppStore } from "../data/useAppStore";
+import { useNavigate } from "@tanstack/react-router";
 import {
   calculateOverallBalances,
   calculateIndividualBalances,
@@ -22,6 +23,7 @@ import type { User } from "../lib/types";
 
 export const SettleUp: React.FC = () => {
   const { currentUser, users, groups, expenses, actions } = useAppStore();
+  const navigate = useNavigate();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [settlementMode, setSettlementMode] = useState<"net" | "individual">(
     "net",
@@ -190,7 +192,7 @@ export const SettleUp: React.FC = () => {
       actions.recordSettlement(selectedUser, settlements);
     }
 
-    actions.navigateTo("dashboard");
+    navigate({ to: "/dashboard" });
   };
 
   const handleBack = () => {
@@ -206,7 +208,7 @@ export const SettleUp: React.FC = () => {
     } else if (step === "confirmation") {
       setStep("specify-amounts");
     } else {
-      actions.navigateTo("dashboard");
+      navigate({ to: "/dashboard" });
     }
   };
 

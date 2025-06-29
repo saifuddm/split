@@ -1,18 +1,20 @@
 import React, { useState } from "react";
 import { ChevronDown, Pencil, CheckCircle } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { useAppStore } from "../data/useAppStore";
 import { Card } from "./Card";
 import { Button } from "./Button";
 import { Avatar } from "./Avatar";
 import type { Expense } from "../lib/types";
 
-interface ExpenseCardProps {
-  expense: Expense;
-}
-
-export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense }) => {
+export const ExpenseCard: React.FC<{ expense: Expense }> = ({ expense }) => {
   const { currentUser, actions } = useAppStore();
+  const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const isGroupExpense = !!expense.groupId;
+  const amountOwedByCurrentUser =
+    expense.participants.find((p) => p.user.id === currentUser.id)?.share || 0;
 
   const handleToggleExpense = () => {
     setIsExpanded((prev) => !prev);
@@ -44,39 +46,13 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense }) => {
     }
   };
 
-  // Handle settlement transactions differently
-  if (expense.isSettlement) {
-    return (
-      <div className="bg-surface0 flex items-center gap-4 rounded-lg p-4">
-        <CheckCircle className="text-green h-5 w-5 flex-shrink-0" />
-        <p className="text-subtext1 text-sm">
-          <span className="text-text font-medium">
-            {expense.paidBy.id === currentUser.id ? "You" : expense.paidBy.name}
-          </span>{" "}
-          paid{" "}
-          <span className="text-text font-medium">
-            {expense.participants[0].user.id === currentUser.id
-              ? "you"
-              : expense.participants[0].user.name}
-          </span>{" "}
-          <span className="text-text font-medium">
-            ${expense.amount.toFixed(2)}
-          </span>
-          <span className="text-subtext0 mt-1 block text-xs">
-            {formatDate(expense.date)}
-          </span>
-        </p>
-      </div>
-    );
-  }
-
-  // Find current user's participation in this expense
-  const currentUserParticipant = expense.participants.find(
-    (p) => p.user.id === currentUser.id,
-  );
+  const handleEdit = () => {
+    actions.startEditingExpense(expense.id);
+    navigate({ to: "/add-expense" });
+  };
 
   return (
-    <Card className="p-0">
+    <Card className="hover:bg-surface0 cursor-pointer" onClick={handleEdit}>
       <div className="cursor-pointer p-4" onClick={handleToggleExpense}>
         <div className="flex items-start justify-between">
           <div className="flex-1">
@@ -96,12 +72,12 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense }) => {
           </div>
           <div className="text-right">
             <p className="text-lg font-bold">${expense.amount.toFixed(2)}</p>
-            {currentUserParticipant ? (
-              <p className="text-subtext1 text-xs">
-                Your share: ${currentUserParticipant.share.toFixed(2)}
-              </p>
-            ) : (
+            {isGroupExpense ? (
               <p className="text-subtext1 text-xs">Not involved in split</p>
+            ) : (
+              <p className="text-subtext1 text-xs">
+                Your share: ${amountOwedByCurrentUser.toFixed(2)}
+              </p>
             )}
           </div>
           <ChevronDown
@@ -122,7 +98,7 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense }) => {
                 size="sm"
                 onClick={(e) => {
                   e.stopPropagation();
-                  actions.startEditingExpense(expense.id);
+                  handleEdit();
                 }}
                 className="flex items-center gap-1"
               >
