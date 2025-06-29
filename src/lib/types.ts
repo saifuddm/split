@@ -3,6 +3,7 @@ export interface User {
   name: string;
   avatarUrl?: string; // Optional avatar image URL
   paymentMessage?: string; // Add this: e.g., "Venmo: @alice-smith"
+  contacts?: string[]; // To show who the user has added as contacts, stores their ids
 }
 
 export interface AuditEntry {

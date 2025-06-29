@@ -42,6 +42,7 @@ interface AppState {
     setPreselectedUserForExpense: (userId: string | null) => void;
     updateCurrentUser: (updatedData: Partial<User>) => void;
     addUser: (name: string) => void;
+    getUsersById: (userIds: string[]) => Promise<User[]>;
   };
 }
 
@@ -212,5 +213,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         users: [...state.users, newUser]
       }));
     },
+    getUsersById: async (userIds) => {
+      return get().users.filter(user => userIds.includes(user.id));
+    }
   },
 }));
