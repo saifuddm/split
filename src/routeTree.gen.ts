@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as GroupGroupIdRouteImport } from './routes/group.$groupId'
 import { Route as CreateGroupRouteImport } from './routes/create/group'
 import { Route as CreateExpenseRouteImport } from './routes/create/expense'
 import { Route as authSignupRouteImport } from './routes/(auth)/signup'
@@ -26,6 +27,11 @@ const DashboardRoute = DashboardRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GroupGroupIdRoute = GroupGroupIdRouteImport.update({
+  id: '/group/$groupId',
+  path: '/group/$groupId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CreateGroupRoute = CreateGroupRouteImport.update({
@@ -68,6 +74,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof authSignupRoute
   '/create/expense': typeof CreateExpenseRoute
   '/create/group': typeof CreateGroupRoute
+  '/group/$groupId': typeof GroupGroupIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByTo {
   '/signup': typeof authSignupRoute
   '/create/expense': typeof CreateExpenseRoute
   '/create/group': typeof CreateGroupRoute
+  '/group/$groupId': typeof GroupGroupIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -89,6 +97,7 @@ export interface FileRoutesById {
   '/(auth)/signup': typeof authSignupRoute
   '/create/expense': typeof CreateExpenseRoute
   '/create/group': typeof CreateGroupRoute
+  '/group/$groupId': typeof GroupGroupIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -101,6 +110,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/create/expense'
     | '/create/group'
+    | '/group/$groupId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/create/expense'
     | '/create/group'
+    | '/group/$groupId'
   id:
     | '__root__'
     | '/'
@@ -121,6 +132,7 @@ export interface FileRouteTypes {
     | '/(auth)/signup'
     | '/create/expense'
     | '/create/group'
+    | '/group/$groupId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -132,6 +144,7 @@ export interface RootRouteChildren {
   authSignupRoute: typeof authSignupRoute
   CreateExpenseRoute: typeof CreateExpenseRoute
   CreateGroupRoute: typeof CreateGroupRoute
+  GroupGroupIdRoute: typeof GroupGroupIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -148,6 +161,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/group/$groupId': {
+      id: '/group/$groupId'
+      path: '/group/$groupId'
+      fullPath: '/group/$groupId'
+      preLoaderRoute: typeof GroupGroupIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/create/group': {
@@ -204,6 +224,7 @@ const rootRouteChildren: RootRouteChildren = {
   authSignupRoute: authSignupRoute,
   CreateExpenseRoute: CreateExpenseRoute,
   CreateGroupRoute: CreateGroupRoute,
+  GroupGroupIdRoute: GroupGroupIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

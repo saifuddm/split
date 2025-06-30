@@ -1,13 +1,16 @@
 import {
+  Await,
   createFileRoute,
   Link,
   redirect,
   useRouter,
 } from "@tanstack/react-router";
 import { Button } from "../../components/Button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, PlusIcon } from "lucide-react";
 import { Avatar } from "../../components/Avatar";
 import { useState } from "react";
+import type { DbUser } from "../../supabaseClient";
+import { useStore } from "../../data/store";
 
 export const Route = createFileRoute("/(account)/settings")({
   beforeLoad: ({ context }) => {
@@ -18,9 +21,17 @@ export const Route = createFileRoute("/(account)/settings")({
     }
   },
   loader: async ({ context }) => {
-    // TODO: get contacts
+    if (context.auth.contacts) {
+      return {
+        contacts: Promise.resolve(context.auth.contacts),
+      };
+    }
+    console.log("Getting contacts for user", context.auth.user?.id);
+    const contactDetails = context.auth.actions.getContactsForUser(
+      context.auth.user?.id!,
+    );
     return {
-      contacts: [],
+      contacts: contactDetails,
     };
   },
   component: SettingsPage,
@@ -28,6 +39,7 @@ export const Route = createFileRoute("/(account)/settings")({
 
 function SettingsPage() {
   const router = useRouter();
+  const { contacts } = Route.useLoaderData();
   const { currentUser, email, updatePaymentMessage } = Route.useRouteContext({
     select: ({ auth }) => ({
       currentUser: auth.user,
@@ -110,6 +122,14 @@ function SettingsPage() {
               </Button>
             </div>
           </div>
+
+          <Await promise={contacts} fallback={<div>Loading Friends...</div>}>
+            {(contacts) => <FriendsList contactDetails={contacts} />}
+          </Await>
+
+          <ThemeSection />
+
+          <AppInfoSection />
         </div>
       </div>
     </div>
@@ -117,15 +137,220 @@ function SettingsPage() {
 }
 
 function Header() {
+  const navigate = Route.useNavigate();
   return (
     <div className="bg-mantle border-surface0 border-b p-4">
       <div className="mx-auto flex items-center gap-3">
-        <Link to="/dashboard">
-          <Button variant="secondary" size="sm" className="p-2">
-            <ArrowLeft size={20} />
-          </Button>
-        </Link>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="p-2"
+          onClick={() => navigate({ to: "/dashboard" })}
+        >
+          <ArrowLeft size={20} />
+        </Button>
         <h1 className="text-xl font-bold">Settings</h1>
+      </div>
+    </div>
+  );
+}
+
+function FriendsList({ contactDetails }: { contactDetails: DbUser[] }) {
+  const router = useRouter();
+  const [isInviting, setIsInviting] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const { addContact } = Route.useRouteContext({
+    select: ({ auth }) => ({
+      addContact: auth.actions.addContact,
+    }),
+  });
+
+  const handleInviteUser = async () => {
+    if (!inviteEmail.trim()) return;
+
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const result = await addContact(inviteEmail.trim());
+
+      if (result.error) {
+        setError(result.error);
+      } else {
+        // Success
+        setInviteEmail("");
+        setIsInviting(false);
+        // Invalidate router to refresh the contacts data
+        router.invalidate();
+      }
+    } catch (error) {
+      setError("An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCancelInvite = () => {
+    setInviteEmail("");
+    setIsInviting(false);
+    setError("");
+  };
+
+  const isValidEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
+  return (
+    <div className="bg-mantle border-surface0 rounded-lg border p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Friends</h2>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => setIsInviting(true)}
+        >
+          <PlusIcon size={20} />
+        </Button>
+      </div>
+
+      {/* Invite User Form */}
+      {isInviting && (
+        <div className="bg-surface0 mb-4 rounded-lg p-3">
+          <div className="space-y-3">
+            <label htmlFor="inviteEmail" className="block text-sm font-medium">
+              Friend's Email
+            </label>
+            <input
+              id="inviteEmail"
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => {
+                setInviteEmail(e.target.value);
+                setError(""); // Clear error when user starts typing
+              }}
+              placeholder="Enter friend's email address"
+              className="bg-mantle border-surface0 focus:ring-blue w-full rounded-lg border px-3 py-2 focus:border-transparent focus:ring-2 focus:outline-none"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !isLoading) {
+                  handleInviteUser();
+                } else if (e.key === "Escape") {
+                  handleCancelInvite();
+                }
+              }}
+              autoFocus
+              disabled={isLoading}
+            />
+            {error && <p className="text-red text-sm">{error}</p>}
+            <div className="flex gap-2">
+              <Button
+                onClick={handleInviteUser}
+                size="sm"
+                disabled={
+                  !inviteEmail.trim() ||
+                  !isValidEmail(inviteEmail.trim()) ||
+                  isLoading
+                }
+                className={
+                  !inviteEmail.trim() ||
+                  !isValidEmail(inviteEmail.trim()) ||
+                  isLoading
+                    ? "cursor-not-allowed opacity-50"
+                    : ""
+                }
+              >
+                {isLoading ? "Adding..." : "Add Friend"}
+              </Button>
+              <Button
+                onClick={handleCancelInvite}
+                variant="secondary"
+                size="sm"
+                disabled={isLoading}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {contactDetails.length === 0 ? (
+        <p className="text-subtext1 mb-3 text-sm">
+          No other users yet. Invite someone to get started!
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {contactDetails.map((user) => (
+            <div
+              className="hover:bg-surface0 flex items-center gap-3 rounded-lg p-2 transition-colors"
+              key={user.id}
+            >
+              <Avatar user={user} size="sm" />
+              <div>
+                <span className="font-medium">{user.name}</span>
+                {user.payment_message && (
+                  <p className="text-subtext1 text-xs">
+                    {user.payment_message}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ThemeSection() {
+  const { isDark, toggleDarkMode } = useStore();
+  return (
+    <div className="bg-mantle border-surface0 rounded-lg border p-4">
+      <h2 className="mb-4 text-lg font-semibold">Appearance</h2>
+
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-medium">Dark Mode</h3>
+          <p className="text-subtext1 text-sm">
+            Switch between light and dark themes
+          </p>
+        </div>
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={toggleDarkMode}
+          className="m-2 scale-150"
+        />
+      </div>
+    </div>
+  );
+}
+
+function AppInfoSection() {
+  return (
+    <div className="bg-mantle border-surface0 rounded-lg border p-4">
+      <h2 className="mb-4 text-lg font-semibold">About</h2>
+      <div className="text-subtext1 space-y-2 text-sm">
+        <p>
+          <span className="text-text font-medium">Version:</span> 1.1.0
+        </p>
+        <p>
+          <span className="text-text font-medium">Built with:</span> React,
+          TypeScript, Tailwind CSS
+        </p>
+        <p>
+          <span className="text-text font-medium">Source:</span>{" "}
+          <a
+            href="https://github.com/saifuddm/split"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue hover:text-sapphire underline transition-colors"
+          >
+            GitHub
+          </a>
+        </p>
       </div>
     </div>
   );

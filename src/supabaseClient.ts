@@ -11,4 +11,16 @@ export type DbUser = Database['public']['Tables']['users']['Row'];
 export type DbUserInsert = Database['public']['Tables']['users']['Insert'];
 export type DbUserUpdate = Database['public']['Tables']['users']['Update'];
 
+export type DbUserContact = Database['public']['Tables']['user_contacts']['Row'];
+export type DbUserContactInsert = Database['public']['Tables']['user_contacts']['Insert'];
+export type DbUserContactUpdate = Database['public']['Tables']['user_contacts']['Update'];
+
+export type DbGroup = Database['public']['Tables']['groups']['Row'];
+export type DbGroupInsert = Database['public']['Tables']['groups']['Insert'];
+export type DbGroupUpdate = Database['public']['Tables']['groups']['Update'];
+
+export type DbGroupMember = Database['public']['Tables']['group_members']['Row'];
+export type DbGroupMemberInsert = Database['public']['Tables']['group_members']['Insert'];
+export type DbGroupMemberUpdate = Database['public']['Tables']['group_members']['Update'];
+
 export default supabase;

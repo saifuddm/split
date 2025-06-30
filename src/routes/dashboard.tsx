@@ -7,10 +7,10 @@ import {
 } from "@tanstack/react-router";
 import { Button } from "../components/Button";
 import { BellIcon, LogOutIcon, SettingsIcon, UsersIcon } from "lucide-react";
-import { useAppStore } from "../data/useAppStore";
-import type { User } from "../lib/types";
 import { Avatar } from "../components/Avatar";
 import React from "react";
+import type { DbGroup, DbUser } from "../supabaseClient";
+import { Card } from "../components/Card";
 
 export const Route = createFileRoute("/dashboard")({
   beforeLoad: ({ context }) => {
@@ -20,25 +20,43 @@ export const Route = createFileRoute("/dashboard")({
       });
     }
   },
-  loader: async () => {
-    const { currentUser, actions } = useAppStore.getState();
-    const contactUserIds = currentUser.contacts || [];
-    const contacts = actions.getUsersById(contactUserIds);
-    // const groupExpenses = actions.getGroupExpenses();
-    // const individualExpenses = actions.getIndividualExpenses();
-    return { currentUser, contacts };
+  loader: async ({ context }) => {
+    console.log(
+      "Loading dashboard",
+      context.auth.contacts,
+      context.auth.groups,
+    );
+
+    // Handle contacts
+    const contactsPromise = context.auth.contacts
+      ? Promise.resolve(context.auth.contacts)
+      : context.auth.actions.getContactsForUser(context.auth.user?.id!);
+
+    // Handle groups
+    const groupsPromise =
+      context.auth.groups && context.auth.groups.length > 0
+        ? Promise.resolve(context.auth.groups)
+        : context.auth.actions.getGroupsForUser(context.auth.user?.id!);
+
+    return {
+      contacts: contactsPromise,
+      groups: groupsPromise,
+    };
   },
   component: DashboardPage,
 });
 
 function DashboardPage() {
-  const { currentUser, contacts } = Route.useLoaderData();
+  const { contacts, groups } = Route.useLoaderData();
 
   return (
     <div className="bg-base text-text min-h-screen p-4">
       <Header />
-      <Await promise={contacts} fallback={<div>Loading...</div>}>
+      <Await promise={contacts} fallback={<div>Loading contacts...</div>}>
         {(data) => <QuickAddSection contacts={data} />}
+      </Await>
+      <Await promise={groups} fallback={<div>Loading groups...</div>}>
+        {(data) => <GroupSection groups={data} />}
       </Await>
     </div>
   );
@@ -97,23 +115,53 @@ function Header() {
   );
 }
 
-function QuickAddSection({ contacts }: { contacts: User[] }) {
+function QuickAddSection({ contacts }: { contacts: DbUser[] }) {
   return (
     <div className="mb-6">
       <h2 className="mb-3 text-lg font-semibold">Add Expense with...</h2>
       <div className="flex gap-4 overflow-x-auto py-2">
         {contacts.map((user) => (
-          <Link to="/create/expense" params={{ userId: user.id }}>
-            <div
-              key={user.id}
-              className="hover:bg-surface0 flex flex-shrink-0 cursor-pointer flex-col items-center gap-2 rounded-lg p-2 transition-colors"
-            >
+          <Link to="/create/expense" params={{ userId: user.id }} key={user.id}>
+            <div className="hover:bg-surface0 flex flex-shrink-0 cursor-pointer flex-col items-center gap-2 rounded-lg p-2 transition-colors">
               <Avatar user={user} size="md" />
               <span className="text-center text-sm font-medium whitespace-nowrap">
                 {user.name}
               </span>
             </div>
           </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface GroupSectionProps {
+  groups: {
+    details: DbGroup;
+    members: DbUser[];
+  }[];
+}
+function GroupSection({ groups }: GroupSectionProps) {
+  const router = useRouter();
+  return (
+    <div className="mb-24 pb-24">
+      <h2 className="mb-4 text-lg font-semibold">Groups</h2>
+      <div className="space-y-3">
+        {groups.map((group) => (
+          <Card
+            key={group.details.id}
+            onClick={() =>
+              router.navigate({
+                to: "/group/$groupId",
+                params: { groupId: group.details.id.toString() },
+              })
+            }
+          >
+            <h3 className="text-lg font-semibold">{group.details.name}</h3>
+            <p className="text-subtext1 text-sm">
+              {group.members.length} members
+            </p>
+          </Card>
         ))}
       </div>
     </div>

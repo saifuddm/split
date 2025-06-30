@@ -1,4 +1,3 @@
-
 export type Json =
   | string
   | number
@@ -58,6 +57,58 @@ export type Database = {
   }
   public: {
     Tables: {
+      group_members: {
+        Row: {
+          created_at: string
+          group_id: number
+          id: number
+          user_id: number
+        }
+        Insert: {
+          created_at?: string
+          group_id: number
+          id?: number
+          user_id: number
+        }
+        Update: {
+          created_at?: string
+          group_id?: number
+          id?: number
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_members_group_id_fkey"
+            columns: ["group_id"]
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_members_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      groups: {
+        Row: {
+          created_at: string
+          id: number
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          name?: string
+        }
+        Relationships: []
+      }
       user_contacts: {
         Row: {
           contact_user_id: number
