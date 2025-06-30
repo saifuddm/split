@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouteContext } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { Button } from "../components/Button";
 import { HistoryIcon, Scale, Spline } from "lucide-react";
@@ -8,16 +8,19 @@ export const Route = createFileRoute("/")({
 });
 
 function LandingPage() {
+  const { auth } = useRouteContext({ from: "/" });
+  const { isAuthenticated } = auth;
+
   return (
     <>
-      <HeroSection />
+      <HeroSection isAuthenticated={isAuthenticated} />
       <FeaturesSection />
       <Footer />
     </>
   );
 }
 
-function HeroSection() {
+function HeroSection({ isAuthenticated }: { isAuthenticated: boolean }) {
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -65,14 +68,25 @@ function HeroSection() {
         </motion.p>
 
         <motion.div variants={itemVariants}>
-          <Link to="/dashboard">
-            <Button
-              size="lg"
-              className="px-8 py-4 text-xl shadow-lg transition-all duration-300 hover:shadow-xl"
-            >
-              Launch App
-            </Button>
-          </Link>
+          {isAuthenticated ? (
+            <Link to="/dashboard">
+              <Button
+                size="lg"
+                className="px-8 py-4 text-xl shadow-lg transition-all duration-300 hover:shadow-xl"
+              >
+                Open Dashboard
+              </Button>
+            </Link>
+          ) : (
+            <Link to="/login">
+              <Button
+                size="lg"
+                className="px-8 py-4 text-xl shadow-lg transition-all duration-300 hover:shadow-xl"
+              >
+                Get Started
+              </Button>
+            </Link>
+          )}
         </motion.div>
       </motion.div>
     </section>

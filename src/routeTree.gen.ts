@@ -13,6 +13,8 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CreateGroupRouteImport } from './routes/create/group'
 import { Route as CreateExpenseRouteImport } from './routes/create/expense'
+import { Route as authSignupRouteImport } from './routes/(auth)/signup'
+import { Route as authLoginRouteImport } from './routes/(auth)/login'
 import { Route as accountSettingsRouteImport } from './routes/(account)/settings'
 import { Route as accountActivityRouteImport } from './routes/(account)/activity'
 
@@ -36,6 +38,16 @@ const CreateExpenseRoute = CreateExpenseRouteImport.update({
   path: '/create/expense',
   getParentRoute: () => rootRouteImport,
 } as any)
+const authSignupRoute = authSignupRouteImport.update({
+  id: '/(auth)/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const authLoginRoute = authLoginRouteImport.update({
+  id: '/(auth)/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const accountSettingsRoute = accountSettingsRouteImport.update({
   id: '/(account)/settings',
   path: '/settings',
@@ -52,6 +64,8 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/activity': typeof accountActivityRoute
   '/settings': typeof accountSettingsRoute
+  '/login': typeof authLoginRoute
+  '/signup': typeof authSignupRoute
   '/create/expense': typeof CreateExpenseRoute
   '/create/group': typeof CreateGroupRoute
 }
@@ -60,6 +74,8 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/activity': typeof accountActivityRoute
   '/settings': typeof accountSettingsRoute
+  '/login': typeof authLoginRoute
+  '/signup': typeof authSignupRoute
   '/create/expense': typeof CreateExpenseRoute
   '/create/group': typeof CreateGroupRoute
 }
@@ -69,6 +85,8 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/(account)/activity': typeof accountActivityRoute
   '/(account)/settings': typeof accountSettingsRoute
+  '/(auth)/login': typeof authLoginRoute
+  '/(auth)/signup': typeof authSignupRoute
   '/create/expense': typeof CreateExpenseRoute
   '/create/group': typeof CreateGroupRoute
 }
@@ -79,6 +97,8 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/activity'
     | '/settings'
+    | '/login'
+    | '/signup'
     | '/create/expense'
     | '/create/group'
   fileRoutesByTo: FileRoutesByTo
@@ -87,6 +107,8 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/activity'
     | '/settings'
+    | '/login'
+    | '/signup'
     | '/create/expense'
     | '/create/group'
   id:
@@ -95,6 +117,8 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/(account)/activity'
     | '/(account)/settings'
+    | '/(auth)/login'
+    | '/(auth)/signup'
     | '/create/expense'
     | '/create/group'
   fileRoutesById: FileRoutesById
@@ -104,6 +128,8 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   accountActivityRoute: typeof accountActivityRoute
   accountSettingsRoute: typeof accountSettingsRoute
+  authLoginRoute: typeof authLoginRoute
+  authSignupRoute: typeof authSignupRoute
   CreateExpenseRoute: typeof CreateExpenseRoute
   CreateGroupRoute: typeof CreateGroupRoute
 }
@@ -138,6 +164,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CreateExpenseRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/(auth)/signup': {
+      id: '/(auth)/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof authSignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/(auth)/login': {
+      id: '/(auth)/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof authLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/(account)/settings': {
       id: '/(account)/settings'
       path: '/settings'
@@ -160,6 +200,8 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   accountActivityRoute: accountActivityRoute,
   accountSettingsRoute: accountSettingsRoute,
+  authLoginRoute: authLoginRoute,
+  authSignupRoute: authSignupRoute,
   CreateExpenseRoute: CreateExpenseRoute,
   CreateGroupRoute: CreateGroupRoute,
 }

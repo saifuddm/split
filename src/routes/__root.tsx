@@ -1,8 +1,13 @@
-import { createRootRoute, Outlet } from "@tanstack/react-router";
+import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { useStore } from "../data/store";
+import type { AuthStore } from "../data/useAuthStore";
 
-export const Route = createRootRoute({
+export interface RouterContext {
+  auth: AuthStore;
+}
+
+export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: () => {
     // Initialize dark mode based on system preference
     const { initializeDarkMode } = useStore.getState();
