@@ -57,23 +57,128 @@ export type Database = {
   }
   public: {
     Tables: {
-      group_members: {
+      audit: {
         Row: {
+          action: string
           created_at: string
-          group_id: number
+          details: string | null
+          expense_id: number
           id: number
           user_id: number
         }
         Insert: {
+          action?: string
           created_at?: string
-          group_id: number
+          details?: string | null
+          expense_id: number
           id?: number
           user_id: number
         }
         Update: {
+          action?: string
           created_at?: string
-          group_id?: number
+          details?: string | null
+          expense_id?: number
           id?: number
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_expense_id_fkey"
+            columns: ["expense_id"]
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_members: {
+        Row: {
+          amount_share: number
+          expense_id: number
+          user_id: number
+        }
+        Insert: {
+          amount_share: number
+          expense_id: number
+          user_id: number
+        }
+        Update: {
+          amount_share?: number
+          expense_id?: number
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_members_expense_id_fkey"
+            columns: ["expense_id"]
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_members_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expenses: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string
+          group_id: number | null
+          id: number
+          user_paid: number
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description: string
+          group_id?: number | null
+          id?: number
+          user_paid: number
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string
+          group_id?: number | null
+          id?: number
+          user_paid?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_group_id_fkey"
+            columns: ["group_id"]
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_user_paid_fkey"
+            columns: ["user_paid"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_members: {
+        Row: {
+          group_id: number
+          user_id: number
+        }
+        Insert: {
+          group_id: number
+          user_id: number
+        }
+        Update: {
+          group_id?: number
           user_id?: number
         }
         Relationships: [
@@ -94,38 +199,85 @@ export type Database = {
       groups: {
         Row: {
           created_at: string
+          created_by: number | null
           id: number
           name: string
         }
         Insert: {
           created_at?: string
+          created_by?: number | null
           id?: number
           name: string
         }
         Update: {
           created_at?: string
+          created_by?: number | null
           id?: number
           name?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "groups_created_by_fkey"
+            columns: ["created_by"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      settlements: {
+        Row: {
+          created_at: string
+          group_id: number | null
+          id: number
+          user_paid: number | null
+          user_received: number | null
+        }
+        Insert: {
+          created_at?: string
+          group_id?: number | null
+          id?: number
+          user_paid?: number | null
+          user_received?: number | null
+        }
+        Update: {
+          created_at?: string
+          group_id?: number | null
+          id?: number
+          user_paid?: number | null
+          user_received?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settlements_group_id_fkey"
+            columns: ["group_id"]
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "settlements_user_paid_fkey"
+            columns: ["user_paid"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "settlements_user_received_fkey"
+            columns: ["user_received"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_contacts: {
         Row: {
           contact_user_id: number
-          created_at: string
-          id: number
           user_id: number
         }
         Insert: {
           contact_user_id: number
-          created_at?: string
-          id?: number
           user_id: number
         }
         Update: {
           contact_user_id?: number
-          created_at?: string
-          id?: number
           user_id?: number
         }
         Relationships: [
