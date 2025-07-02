@@ -1,10 +1,26 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { useAuthStore } from "../data/useAuthStore";
 
 export const Route = createFileRoute("/group/$groupId")({
-  component: RouteComponent,
+  beforeLoad: async ({ params }) => {
+    const { groupId } = params;
+    const { groups } = useAuthStore();
+    const group = groups.find((g) => g.details.id === Number(groupId));
+    if (!group) {
+      throw redirect({ to: "/dashboard" });
+    }
+    return { group };
+  },
+  component: GroupDetailPage,
 });
 
-function RouteComponent() {
+function GroupDetailPage() {
   const { groupId } = Route.useParams();
-  return <div>Hello {groupId}!</div>;
+  const { groups } = useAuthStore();
+  return (
+    <div>
+      Hello {groups.find((g) => g.details.id === Number(groupId))?.details.name}
+      !
+    </div>
+  );
 }

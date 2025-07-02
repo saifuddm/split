@@ -123,7 +123,7 @@ function SettingsPage() {
             </div>
           </div>
 
-          <Await promise={contacts} fallback={<div>Loading Friends...</div>}>
+          <Await promise={contacts} fallback={<FriendsListSkeleton />}>
             {(contacts) => <FriendsList contactDetails={contacts} />}
           </Await>
 
@@ -351,6 +351,31 @@ function AppInfoSection() {
             GitHub
           </a>
         </p>
+      </div>
+    </div>
+  );
+}
+
+function FriendsListSkeleton() {
+  return (
+    <div className="bg-mantle border-surface0 rounded-lg border p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Friends</h2>
+        <Button variant="secondary" size="sm">
+          <PlusIcon size={20} />
+        </Button>
+      </div>
+
+      <div className="space-y-2">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3 rounded-lg p-2">
+            <div className="bg-surface0 h-8 w-8 animate-pulse rounded-full" />
+            <div className="space-y-1">
+              <div className="bg-surface0 h-4 w-24 animate-pulse rounded" />
+              <div className="bg-surface0 h-3 w-32 animate-pulse rounded" />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

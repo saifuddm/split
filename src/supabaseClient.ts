@@ -23,4 +23,12 @@ export type DbGroupMember = Database['public']['Tables']['group_members']['Row']
 export type DbGroupMemberInsert = Database['public']['Tables']['group_members']['Insert'];
 export type DbGroupMemberUpdate = Database['public']['Tables']['group_members']['Update'];
 
+export type DbExpense = Database['public']['Tables']['expenses']['Row'];
+export type DbExpenseInsert = Database['public']['Tables']['expenses']['Insert'];
+export type DbExpenseUpdate = Database['public']['Tables']['expenses']['Update'];
+
+export type DbExpenseMember = Database['public']['Tables']['expense_members']['Row'];
+export type DbExpenseMemberInsert = Database['public']['Tables']['expense_members']['Insert'];
+export type DbExpenseMemberUpdate = Database['public']['Tables']['expense_members']['Update'];
+
 export default supabase;

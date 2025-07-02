@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import supabase, { type DbUser, type DbGroup } from '../supabaseClient';
+import supabase, { type DbUser, type DbGroup, type DbExpenseMember, type DbExpense, type DbExpenseInsert, type DbExpenseMemberInsert } from '../supabaseClient';
 import type { Session } from '@supabase/supabase-js';
 
 export interface AuthState {
@@ -12,7 +12,11 @@ export interface AuthState {
   groups: {
     details: DbGroup ;
     members: DbUser[];
-  }[]
+  }[];
+  expenses: {
+    details: DbExpense;
+    members: DbExpenseMember[];
+  }[];
 }
 
 interface AuthActions {
@@ -25,6 +29,8 @@ interface AuthActions {
   addContact: (email: string) => Promise<{ error?: string; user?: DbUser; isNewUser?: boolean }>;
   createGroup: (name: string, members: DbUser[]) => Promise<{ error?: string; success?: boolean; group?: DbGroup }>;
   getGroupsForUser: (userId: number) => Promise<AuthState['groups']>;
+  createExpense: (expenseDetails: DbExpenseInsert, members: DbExpenseMemberInsert[]) => Promise<{ error?: string; success?: boolean; expense?: DbExpense }>;
+  getExpensesForUser: (userId: number) => Promise<AuthState['expenses']>;
 }
 
 export interface AuthStore extends AuthState {
@@ -41,6 +47,7 @@ export const useAuthStore = create<AuthStore>()(
       isAuthenticated: false,
       contacts: null,
       groups: [],
+      expenses: [],
       // Actions
       actions: {
         initialize: async () => {
@@ -52,7 +59,7 @@ export const useAuthStore = create<AuthStore>()(
             
             if (error) {
               console.error('Error getting session:', error);
-              set({ user: null, session: null, isAuthenticated: false, isLoading: false, contacts: null });
+              set({ user: null, session: null, isAuthenticated: false, isLoading: false, contacts: null, groups: [], expenses: [] });
               return;
             }
 
@@ -75,7 +82,7 @@ export const useAuthStore = create<AuthStore>()(
                 isLoading: false 
               });
             } else {
-              set({ user: null, session: null, isAuthenticated: false, isLoading: false, contacts: null });
+              set({ user: null, session: null, isAuthenticated: false, isLoading: false, contacts: null, groups: [], expenses: [] });
             }
 
             // Set up auth state listener
@@ -98,13 +105,13 @@ export const useAuthStore = create<AuthStore>()(
                   isAuthenticated: true, 
                   isLoading: false 
                 });
-              } else {
-                set({ user: null, session: null, isAuthenticated: false, isLoading: false, contacts: null });
-              }
+                          } else {
+              set({ user: null, session: null, isAuthenticated: false, isLoading: false, contacts: null, groups: [], expenses: [] });
+            }
             });
           } catch (error) {
             console.error('Error initializing auth:', error);
-            set({ user: null, session: null, isAuthenticated: false, isLoading: false, contacts: null });
+            set({ user: null, session: null, isAuthenticated: false, isLoading: false, contacts: null, groups: [], expenses: [] });
           }
         },
 
@@ -200,7 +207,7 @@ export const useAuthStore = create<AuthStore>()(
           try {
             set({ isLoading: true });
             await supabase.auth.signOut();
-            set({ user: null, session: null, isAuthenticated: false, isLoading: false, contacts: null });
+            set({ user: null, session: null, isAuthenticated: false, isLoading: false, contacts: null, groups: [], expenses: [] });
             
           } catch (error) {
             console.error('Error signing out:', error);
@@ -269,33 +276,34 @@ export const useAuthStore = create<AuthStore>()(
             }
 
             const contactUser = data.user;
+            console.log("Contact user", contactUser);
 
-            // Check if contact already exists
-            const { data: existingContact, error: checkError } = await supabase
-              .from('user_contacts')
-              .select('id')
-              .eq('user_id', currentUser.id)
-              .eq('contact_user_id', contactUser.id)
-              .single();
-
-            if (existingContact) {
+            // Check if contact already exists in local state
+            const currentContacts = get().contacts || [];
+            const contactExists = currentContacts.some(contact => contact.id === contactUser.id);
+            
+            if (contactExists) {
               return { error: 'This user is already in your contacts' };
             }
 
-            // Add to user_contacts table
-            const { error: insertError } = await supabase
+            // Add to user_contacts table using upsert (handles duplicates automatically)
+            const { error: upsertError } = await supabase
               .from('user_contacts')
-              .insert({
+              .upsert({
                 user_id: currentUser.id,
                 contact_user_id: contactUser.id
+              }, {
+                onConflict: 'user_id,contact_user_id',
+                ignoreDuplicates: true
               });
 
-            if (insertError) {
-              return { error: insertError.message };
+            if (upsertError) {
+              console.error("Error upserting contact", upsertError);
+              return { error: upsertError.message };
             }
 
-            // Update local contacts state
-            const currentContacts = get().contacts || [];
+            console.log("Updating contacts state");
+            // Update local contacts state (only if we reach here, it's a new contact)
             set({ contacts: [...currentContacts, contactUser] });
 
             return { 
@@ -353,6 +361,122 @@ export const useAuthStore = create<AuthStore>()(
           }
         },
 
+        createExpense: async (expenseDetails: DbExpenseInsert, members: DbExpenseMemberInsert[]) => {
+          try {
+            const currentUser = get().user;
+            if (!currentUser) {
+              return { error: 'User not authenticated' };
+            }
+
+            // Validation
+            if (!expenseDetails.description?.trim()) {
+              return { error: 'Description is required' };
+            }
+            if (!expenseDetails.amount || expenseDetails.amount <= 0) {
+              return { error: 'Amount must be greater than 0' };
+            }
+            if (!members || members.length === 0) {
+              return { error: 'At least one member is required' };
+            }
+
+            // Validate that total shares equal the expense amount (allow small rounding differences)
+            const totalShares = members.reduce((sum, member) => sum + member.amount_share, 0);
+            const difference = Math.abs(totalShares - expenseDetails.amount);
+            if (difference > 0.01) {
+              return { error: `Total shares (${totalShares.toFixed(2)}) don't match expense amount (${expenseDetails.amount.toFixed(2)})` };
+            }
+
+            // Create expense
+            const { data: expenseData, error: expenseError } = await supabase
+              .from('expenses')
+              .insert(expenseDetails)
+              .select()
+              .single();
+
+            if (expenseError || !expenseData) {
+              console.error('Error creating expense:', expenseError);
+              return { error: expenseError?.message || 'Failed to create expense' };
+            }
+
+            // Create expense members with their shares in batch
+            const membersWithExpenseId = members.map(member => ({
+              expense_id: expenseData.id,
+              user_id: member.user_id,
+              amount_share: member.amount_share,
+            }));
+
+            const { data: memberData, error: memberError } = await supabase
+              .from('expense_members')
+              .insert(membersWithExpenseId)
+              .select();
+
+            if (memberError || !memberData) {
+              console.error('Error creating expense members:', memberError);
+              
+              // Rollback: Delete the created expense
+              await supabase
+                .from('expenses')
+                .delete()
+                .eq('id', expenseData.id);
+              
+              return { error: memberError?.message || 'Failed to create expense members' };
+            }
+
+            // Fetch complete expense data with member details for context
+            const { data: completeExpenseData, error: fetchError } = await supabase
+              .from('expense_members')
+              .select(`
+                expense_id,
+                user_id,
+                amount_share,
+                expenses!inner (
+                  id,
+                  amount,
+                  description,
+                  group_id,
+                  user_paid,
+                  created_at
+                ),
+                users!inner (
+                  id,
+                  user_id,
+                  name,
+                  avatar_url,
+                  payment_message,
+                  created_at
+                )
+              `)
+              .eq('expense_id', expenseData.id);
+
+            if (fetchError || !completeExpenseData) {
+              console.error('Error fetching complete expense data:', fetchError);
+              // Don't rollback here since expense was created successfully
+              // Just log the error and continue with basic data
+            }
+
+            // Build the expense object for context
+            const expenseForContext = {
+              details: expenseData,
+              members: memberData.map(member => ({
+                expense_id: member.expense_id,
+                user_id: member.user_id,
+                amount_share: member.amount_share,
+              }))
+            };
+
+            // Update expenses context
+            const currentExpenses = get().expenses || [];
+            set({ expenses: [...currentExpenses, expenseForContext] });
+
+            console.log('Expense created successfully:', expenseData.id);
+            return { success: true, expense: expenseData };
+
+          } catch (error) {
+            console.error('Unexpected error creating expense:', error);
+            return { error: 'An unexpected error occurred while creating the expense' };
+          }
+        },
+
         getGroupsForUser: async (userId: number) => {
           try {
             // First: Get group IDs where the user is a member
@@ -362,6 +486,7 @@ export const useAuthStore = create<AuthStore>()(
               .eq('user_id', userId);
 
             if (userGroupsError || !userGroups) {
+              console.error('Error fetching user groups:', userGroupsError);
               throw new Error(userGroupsError?.message || 'Failed to fetch user groups');
             }
 
@@ -431,6 +556,97 @@ export const useAuthStore = create<AuthStore>()(
             console.error('Error fetching groups for user:', error);
             throw error;
           }
+        },
+
+        getExpensesForUser: async (userId: number) => {
+          try {
+            // First: Get expense IDs where the user is a member
+            const { data: userExpenses, error: userExpensesError } = await supabase
+              .from('expense_members')
+              .select('expense_id')
+              .eq('user_id', userId);
+
+            if (userExpensesError || !userExpenses) {
+              console.error('Error fetching user expenses:', userExpensesError);
+              throw new Error(userExpensesError?.message || 'Failed to fetch user expenses');
+            }
+
+            const expenseIds = userExpenses.map(item => item.expense_id);
+
+            if (expenseIds.length === 0) {
+              set({ expenses: [] });
+              return [];
+            }
+
+            // Second: Get all expenses and their members with user details in a single optimized query
+            const { data: expensesWithMembers, error: expensesError } = await supabase
+              .from('expense_members')
+              .select(`
+                expense_id,
+                user_id,
+                amount_share,
+                expenses!inner (
+                  id,
+                  amount,
+                  description,
+                  group_id,
+                  user_paid,
+                  created_at
+                ),
+                users!inner (
+                  id,
+                  user_id,
+                  name,
+                  avatar_url,
+                  payment_message,
+                  created_at
+                )
+              `)
+              .in('expense_id', expenseIds)
+              .order('expenses(created_at)', { ascending: false }); // Most recent first
+
+            if (expensesError || !expensesWithMembers) {
+              throw new Error(expensesError?.message || 'Failed to fetch expenses and members');
+            }
+
+            // Group the data by expense_id and build the final structure
+            const expensesMap = new Map<number, { details: DbExpense; members: DbExpenseMember[] }>();
+
+            expensesWithMembers.forEach(item => {
+              const expenseId = item.expense_id;
+              const expense = item.expenses as DbExpense;
+              const member = {
+                expense_id: item.expense_id,
+                user_id: item.user_id,
+                amount_share: item.amount_share,
+              } as DbExpenseMember;
+
+              if (!expensesMap.has(expenseId)) {
+                expensesMap.set(expenseId, {
+                  details: expense,
+                  members: []
+                });
+              }
+
+              const expenseData = expensesMap.get(expenseId)!;
+              
+              // Avoid duplicate members
+              if (!expenseData.members.some(existingMember => existingMember.user_id === member.user_id)) {
+                expenseData.members.push(member);
+              }
+            });
+
+            const result = Array.from(expensesMap.values());
+            
+            // Update the store with the expenses
+            set({ expenses: result });
+            
+            console.log(`Loaded ${result.length} expenses for user ${userId}`);
+            return result;
+          } catch (error) {
+            console.error('Error fetching expenses for user:', error);
+            throw error;
+          }
         }
       },
     }),
@@ -442,6 +658,7 @@ export const useAuthStore = create<AuthStore>()(
         isAuthenticated: state.isAuthenticated,
         contacts: state.contacts,
         groups: state.groups,
+        expenses: state.expenses,
       }),
     }
   )

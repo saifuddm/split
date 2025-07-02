@@ -1,44 +1,58 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 interface Store {
-    text: string,
-    setText: (text: string) => void,
     isDark: boolean,
     toggleDarkMode: () => void,
     initializeDarkMode: () => void,
 }
 
-export const useStore = create<Store>((set) => ({
-    text: "Hello User",
-    setText: (text: string) => {
-        set({ text })
-
-        const timeout = setTimeout(() => {
-            set({ text: "Hello User" })
-        }, 1000);
-
-        return () => clearTimeout(timeout);
-    },
-    isDark: false,
-    toggleDarkMode: () => {
-        set((state) => {
-            const newIsDark = !state.isDark;
-            document.documentElement.classList.toggle("dark");
-            return { isDark: newIsDark };
-        });
-    },
-    initializeDarkMode: () => {
-        // Check if dark mode is currently active
-        const checkDarkMode = () => {
-            return document.documentElement.classList.contains("dark");
-        };
-
-        // Initialize based on system preference
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        if (prefersDark && !checkDarkMode()) {
-            document.documentElement.classList.add("dark");
+export const useStore = create<Store>()(
+    persist(
+        (set, get) => ({
+            isDark: false,
+            toggleDarkMode: () => {
+                set((state) => {
+                    const newIsDark = !state.isDark;
+                    // Apply the theme immediately
+                    if (newIsDark) {
+                        document.documentElement.classList.add("dark");
+                    } else {
+                        document.documentElement.classList.remove("dark");
+                    }
+                    return { isDark: newIsDark };
+                });
+            },
+            initializeDarkMode: () => {
+                // Get the current persisted state
+                const currentState = get();
+                
+                // If we have a saved preference, use it
+                if (currentState.isDark !== undefined) {
+                    if (currentState.isDark) {
+                        document.documentElement.classList.add("dark");
+                    } else {
+                        document.documentElement.classList.remove("dark");
+                    }
+                    return;
+                }
+                
+                // Otherwise, fall back to system preference
+                const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+                if (prefersDark) {
+                    document.documentElement.classList.add("dark");
+                    set({ isDark: true });
+                } else {
+                    document.documentElement.classList.remove("dark");
+                    set({ isDark: false });
+                }
+            }
+        }),
+        {
+            name: 'app-store',
+            partialize: (state) => ({
+                isDark: state.isDark,
+            }),
         }
-
-        set({ isDark: checkDarkMode() });
-    }
-}));
+    )
+);

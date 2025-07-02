@@ -106,7 +106,7 @@ function LoginPage() {
                 Email
               </label>
               <div className="relative">
-                <Mail className="text-subtext0 absolute top-3 left-3 h-5 w-5" />
+                <Mail className="text-subtext0 absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2" />
                 <input
                   type="email"
                   id="email"
@@ -128,7 +128,7 @@ function LoginPage() {
                 Password
               </label>
               <div className="relative">
-                <Lock className="text-subtext0 absolute top-3 left-3 h-5 w-5" />
+                <Lock className="text-subtext0 absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2" />
                 <input
                   type={showPassword ? "text" : "password"}
                   id="password"
@@ -142,7 +142,7 @@ function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="text-subtext0 hover:text-text absolute top-3 right-3"
+                  className="text-subtext0 hover:text-text absolute top-1/2 right-3 -translate-y-1/2"
                 >
                   {showPassword ? (
                     <EyeOff className="h-5 w-5" />
